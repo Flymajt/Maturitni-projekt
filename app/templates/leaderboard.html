@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Leaderboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<h1>Leaderboard</h1>
+
+<table border="1" cellpadding="6">
+    <tr>
+        <th>Uživatel</th>
+        <th>Téma</th>
+        <th>Obtížnost</th>
+        <th>Skóre</th>
+        <th>Otázek</th>
+        <th>Datum</th>
+    </tr>
+    {% for r in rows %}
+    <tr>
+        <td>{{ r.username }}</td>
+        <td>{{ r.category }}</td>
+        <td>{{ r.difficulty }}</td>
+        <td>{{ r.score }}</td>
+        <td>{{ r.total_questions }}</td>
+        <td>{{ r.played_at }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+</body>
+</html>
