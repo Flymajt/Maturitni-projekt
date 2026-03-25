@@ -1,0 +1,222 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head split">
+  <div>
+    <h1>{% if mode == 'edit' %}Úprava otázky{% else %}Nové otázky{% endif %}</h1>
+    {% if mode == 'edit' %}
+      <p>Upravuješ jednu konkrétní otázku.</p>
+    {% else %}
+      <p>V jednom formuláři můžeš vytvořit více otázek najednou.</p>
+    {% endif %}
+  </div>
+  <a class="btn btn-outline" href="{{ url_for('admin_questions') }}">Zpět na seznam</a>
+</section>
+
+{% if mode == 'edit' %}
+<section class="panel">
+  <form method="post" class="form-grid two-columns">
+    <label for="question_text">Text otázky</label>
+    <textarea id="question_text" name="question_text" rows="3" required>{{ question.question_text or '' }}</textarea>
+
+    <label for="answer_a">Odpověď A</label>
+    <input id="answer_a" name="answer_a" type="text" value="{{ question.answer_a or '' }}" required>
+
+    <label for="answer_b">Odpověď B</label>
+    <input id="answer_b" name="answer_b" type="text" value="{{ question.answer_b or '' }}" required>
+
+    <label for="answer_c">Odpověď C</label>
+    <input id="answer_c" name="answer_c" type="text" value="{{ question.answer_c or '' }}" required>
+
+    <label for="answer_d">Odpověď D</label>
+    <input id="answer_d" name="answer_d" type="text" value="{{ question.answer_d or '' }}" required>
+
+    <label for="correct_answer">Správná odpověď</label>
+    <select id="correct_answer" name="correct_answer" required>
+      {% for letter in ['A', 'B', 'C', 'D'] %}
+        <option value="{{ letter }}" {% if (question.correct_answer or 'A') == letter %}selected{% endif %}>{{ letter }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="category_id">Kategorie</label>
+    <select id="category_id" name="category_id" required>
+      <option value="">Vyber kategorii</option>
+      {% for c in categories %}
+        <option value="{{ c.category_id }}" {% if question.category_id == c.category_id %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="difficulty_id">Obtížnost</label>
+    <select id="difficulty_id" name="difficulty_id" required>
+      <option value="">Vyber obtížnost</option>
+      {% for d in difficulties %}
+        <option value="{{ d.difficulty_id }}" {% if question.difficulty_id == d.difficulty_id %}selected{% endif %}>{{ d.name }}</option>
+      {% endfor %}
+    </select>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Uložit změny</button>
+      <a class="btn btn-outline" href="{{ url_for('admin_questions') }}">Zrušit</a>
+    </div>
+  </form>
+</section>
+{% else %}
+<section class="panel">
+  <form method="post" id="bulkQuestionForm" class="form-grid">
+    <div class="form-actions">
+      <button type="button" id="addQuestionBtn" class="btn btn-secondary">Přidat další otázku</button>
+    </div>
+
+    <div id="questionItems" class="question-items">
+      <article class="question-item" data-index="1">
+        <div class="question-item-head">
+          <h3>Otázka #1</h3>
+          <button type="button" class="btn btn-outline btn-sm remove-question" disabled>Odebrat</button>
+        </div>
+
+        <label>Text otázky</label>
+        <textarea name="question_text[]" rows="3" required></textarea>
+
+        <label>Odpověď A</label>
+        <input name="answer_a[]" type="text" required>
+
+        <label>Odpověď B</label>
+        <input name="answer_b[]" type="text" required>
+
+        <label>Odpověď C</label>
+        <input name="answer_c[]" type="text" required>
+
+        <label>Odpověď D</label>
+        <input name="answer_d[]" type="text" required>
+
+        <label>Správná odpověď</label>
+        <select name="correct_answer[]" required>
+          <option value="A">A</option>
+          <option value="B">B</option>
+          <option value="C">C</option>
+          <option value="D">D</option>
+        </select>
+
+        <label>Kategorie</label>
+        <select name="category_id[]" required>
+          <option value="">Vyber kategorii</option>
+          {% for c in categories %}
+            <option value="{{ c.category_id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+
+        <label>Obtížnost</label>
+        <select name="difficulty_id[]" required>
+          <option value="">Vyber obtížnost</option>
+          {% for d in difficulties %}
+            <option value="{{ d.difficulty_id }}">{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </article>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Vytvořit otázky</button>
+      <a class="btn btn-outline" href="{{ url_for('admin_questions') }}">Zrušit</a>
+    </div>
+  </form>
+</section>
+
+<template id="questionItemTemplate">
+  <article class="question-item">
+    <div class="question-item-head">
+      <h3></h3>
+      <button type="button" class="btn btn-outline btn-sm remove-question">Odebrat</button>
+    </div>
+
+    <label>Text otázky</label>
+    <textarea name="question_text[]" rows="3" required></textarea>
+
+    <label>Odpověď A</label>
+    <input name="answer_a[]" type="text" required>
+
+    <label>Odpověď B</label>
+    <input name="answer_b[]" type="text" required>
+
+    <label>Odpověď C</label>
+    <input name="answer_c[]" type="text" required>
+
+    <label>Odpověď D</label>
+    <input name="answer_d[]" type="text" required>
+
+    <label>Správná odpověď</label>
+    <select name="correct_answer[]" required>
+      <option value="A">A</option>
+      <option value="B">B</option>
+      <option value="C">C</option>
+      <option value="D">D</option>
+    </select>
+
+    <label>Kategorie</label>
+    <select name="category_id[]" required>
+      <option value="">Vyber kategorii</option>
+      {% for c in categories %}
+        <option value="{{ c.category_id }}">{{ c.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label>Obtížnost</label>
+    <select name="difficulty_id[]" required>
+      <option value="">Vyber obtížnost</option>
+      {% for d in difficulties %}
+        <option value="{{ d.difficulty_id }}">{{ d.name }}</option>
+      {% endfor %}
+    </select>
+  </article>
+</template>
+
+<script>
+  const addBtn = document.getElementById('addQuestionBtn');
+  const container = document.getElementById('questionItems');
+  const template = document.getElementById('questionItemTemplate');
+
+  function updateQuestionHeadings() {
+    const items = container.querySelectorAll('.question-item');
+    items.forEach((item, index) => {
+      const number = index + 1;
+      const title = item.querySelector('h3');
+      if (title) {
+        title.textContent = `Otázka #${number}`;
+      }
+
+      const removeBtn = item.querySelector('.remove-question');
+      if (removeBtn) {
+        removeBtn.disabled = items.length === 1;
+      }
+    });
+  }
+
+  addBtn.addEventListener('click', () => {
+    const clone = template.content.firstElementChild.cloneNode(true);
+    container.appendChild(clone);
+    updateQuestionHeadings();
+  });
+
+  container.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!target.classList.contains('remove-question')) {
+      return;
+    }
+
+    const item = target.closest('.question-item');
+    if (!item) {
+      return;
+    }
+
+    if (container.querySelectorAll('.question-item').length <= 1) {
+      return;
+    }
+
+    item.remove();
+    updateQuestionHeadings();
+  });
+
+  updateQuestionHeadings();
+</script>
+{% endif %}
+{% endblock %}

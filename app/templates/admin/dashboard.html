@@ -1,0 +1,32 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head split">
+  <div>
+    <h1>Administrace</h1>
+    <p>Správa otázek, kategorií, výsledků a uživatelů v jednom rozhraní.</p>
+  </div>
+</section>
+
+<section class="admin-cards">
+  <a class="panel admin-card" href="{{ url_for('admin_questions') }}">
+    <h2>Správa otázek</h2>
+    <p>Vytvářej, upravuj a maž otázky včetně kategorií a obtížností.</p>
+  </a>
+
+  <a class="panel admin-card" href="{{ url_for('admin_categories') }}">
+    <h2>Správa kategorií</h2>
+    <p>Přidávej nové kategorie, které pak použiješ při tvorbě otázek.</p>
+  </a>
+
+  <a class="panel admin-card" href="{{ url_for('admin_results') }}">
+    <h2>Správa výsledků</h2>
+    <p>Filtruj výsledky, exportuj je do CSV a hromadně maž vybrané záznamy.</p>
+  </a>
+
+  <a class="panel admin-card" href="{{ url_for('admin_users') }}">
+    <h2>Registrovaní uživatelé</h2>
+    <p>Přehled všech účtů + spodní sekce pro správu: vymazání, přejmenování a změna hesla uživatele.</p>
+  </a>
+</section>
+{% endblock %}

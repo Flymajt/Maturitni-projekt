@@ -1,0 +1,65 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head split">
+  <div>
+    <h1>Správa kategorií</h1>
+    <p>Přidání nové kategorie pro budoucí otázky v kvízu.</p>
+  </div>
+  <a class="btn btn-outline" href="{{ url_for('admin_questions') }}">Zpět na otázky</a>
+</section>
+
+<section class="panel">
+  <h2>Nová kategorie</h2>
+  <form method="post" class="form-grid">
+    <input type="hidden" name="action" value="create">
+    <label for="name">Název</label>
+    <input id="name" name="name" type="text" maxlength="50" required>
+
+    <label for="description">Popis (volitelný)</label>
+    <textarea id="description" name="description" rows="3"></textarea>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Přidat kategorii</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Existující kategorie</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Název</th>
+          <th>Popis</th>
+          <th>Počet otázek</th>
+          <th>Akce</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in categories %}
+          <tr>
+            <td>{{ c.category_id }}</td>
+            <td>{{ c.name }}</td>
+            <td>{{ c.description or '-' }}</td>
+            <td>{{ c.question_count }}</td>
+            <td>
+              <form method="post" class="inline-form" onsubmit="return confirm('Opravdu chceš smazat tuto kategorii?');">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="category_id" value="{{ c.category_id }}">
+                <button class="btn btn-danger btn-sm" type="submit">Smazat</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="5" class="muted">Zatím není vytvořena žádná kategorie.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

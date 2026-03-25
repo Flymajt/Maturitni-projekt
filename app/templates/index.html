@@ -1,126 +1,68 @@
-<!doctype html>
-<html lang="cs">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kvízová hra — Úvod</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <link href="static/style.css" rel="stylesheet" />
-</head>
-<body>
-  <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
-    <div class="container">
-      <a class="navbar-brand fw-bold" href="#">Kvízová hra</a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="navMenu">
-        <ul class="navbar-nav ms-auto align-items-lg-center">
-          <li class="nav-item"><a class="nav-link" href="#features">Funkce</a></li>
-          <li class="nav-item"><a class="nav-link" href="#screenshots">Snímky</a></li>
-          <li class="nav-item"><a class="nav-link" href="#download">Stáhnout</a></li>
-          <li class="nav-item ms-3"><a class="btn btn-outline-primary" href="#login">Přihlášení</a></li>
-        </ul>
-      </div>
+﻿{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Interaktivní kvízový systém</h1>
+    <p>
+      Uživatel hraje kvíz v desktopové aplikaci, výsledek se ukládá do MySQL
+      a webová část následně zobrazuje leaderboard i statistiky.
+    </p>
+
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="{{ url_for('leaderboard') }}">Zobrazit leaderboard</a>
+      <a class="btn btn-outline" href="{{ url_for('stats_page') }}">Otevřít statistiky</a>
+      {% if not current_user %}
+        <a class="btn btn-secondary" href="{{ url_for('login') }}">Přihlásit se na web</a>
+      {% endif %}
     </div>
-  </nav>
+  </div>
 
-<a href="/leaderboard">Zobrazit leaderboard</a>
+  <div class="hero-card">
+    {% if current_user %}
+      <h3>Jsi přihlášen jako {{ current_user.username }}</h3>
+      <p>
+        Role: <strong>{{ current_user.role }}</strong>
+      </p>
+      {% if current_user.role == 'admin' %}
+        <a class="btn btn-primary" href="{{ url_for('admin_dashboard') }}">Přejít do administrace</a>
+      {% else %}
+        <p>Admin funkce jsou dostupné pouze účtu s rolí <code>admin</code>.</p>
+      {% endif %}
+    {% else %}
+      <h3>Nepřihlášený návštěvník</h3>
+      <p>Po přihlášení uvidíš personalizovaný obsah a přístupové role.</p>
+    {% endif %}
+  </div>
+</section>
 
-
-  <header class="hero">
-    <div class="container">
-      <div class="row align-items-center">
-        <div class="col-lg-6">
-          <h1 class="display-6 fw-bold">Kvízová hra — uč se, soutěž a sbírej skóre</h1>
-          <p class="lead text-muted">Vyber si téma a obtížnost, odpovídej na otázky a porovnej své výsledky v žebříčku. Desktopová aplikace pro hraní + webový dashboard pro správu a leaderboard.</p>
-          <div class="d-flex gap-2 mt-4">
-            <a class="btn btn-primary btn-lg" href="#download">Stáhnout aplikaci</a>
-            <a class="btn btn-outline-secondary btn-lg" href="#features">Zjistit více</a>
-          </div>
-        </div>
-        <div class="col-lg-6">
-          <div class="screenshot">Screenshot / demo aplikace</div>
-        </div>
-      </div>
+<section class="panel">
+  <h2>Poslední uložené výsledky</h2>
+  {% if recent_results %}
+    <div class="table-wrap compact">
+      <table>
+        <thead>
+          <tr>
+            <th>Uživatel</th>
+            <th>Kategorie</th>
+            <th>Obtížnost</th>
+            <th>Skóre</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in recent_results %}
+            <tr>
+              <td>{{ r.username }}</td>
+              <td>{{ r.category }}</td>
+              <td>{{ r.difficulty }}</td>
+              <td>{{ r.score }}/{{ r.total_questions }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
-  </header>
-
-  <section id="features" class="py-5">
-    <div class="container">
-      <h2 class="h4 mb-4">Hlavní funkce</h2>
-      <div class="row g-4">
-        <div class="col-md-6 col-lg-3">
-          <div class="p-3 bg-white rounded-3 h-100">
-            <div class="d-flex align-items-start gap-3">
-              <div>
-                <h5 class="mb-1">Témata a obtížnosti</h5>
-                <p class="text-muted small mb-0">Vyber si z kategorií (IT, Sport, Historie) a z úrovně obtížnosti (Easy → Extreme).</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-6 col-lg-3">
-          <div class="p-3 bg-white rounded-3 h-100">
-            <div class="d-flex align-items-start gap-3">
-              <div>
-                <h5 class="mb-1">Leaderboard</h5>
-                <p class="text-muted small mb-0">Žebříček hráčů s filtrem podle tématu a obtížnosti.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-6 col-lg-3">
-          <div class="p-3 bg-white rounded-3 h-100">
-            <div class="d-flex align-items-start gap-3">
-              <div>
-                <h5 class="mb-1">Admin panel</h5>
-                <p class="text-muted small mb-0">Správa otázek, kategorií a výsledků přes webové rozhraní.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-6 col-lg-3">
-          <div class="p-3 bg-white rounded-3 h-100">
-            <div class="d-flex align-items-start gap-3">
-              <div>
-                <h5 class="mb-1">Ukládání výsledků</h5>
-                <p class="text-muted small mb-0">Výsledky se ukládají do databáze; možnost exportu do CSV.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </section>
-
-  <section id="screenshots" class="py-5 bg-white border-top">
-    <div class="container">
-      <h2 class="h4 mb-4">Ukázky</h2>
-      <div class="row g-4">
-        <div class="col-md-4"><div class="screenshot">Login</div></div>
-        <div class="col-md-4"><div class="screenshot">Quiz</div></div>
-        <div class="col-md-4"><div class="screenshot">Leaderboard</div></div>
-      </div>
-    </div>
-  </section>
-
-  <footer class="mt-5">
-    <div class="container d-flex justify-content-between align-items-center">
-      <div>
-        <strong>Kvízová hra</strong>
-        <div class="text-muted small">Projekt pro maturitu</div>
-      </div>
-      <div>
-        <small class="text-muted">© 2025 • Všechny práva vyhrazena</small>
-      </div>
-    </div>
-  </footer>
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+  {% else %}
+    <p>Zatím nejsou uložené žádné výsledky.</p>
+  {% endif %}
+</section>
+{% endblock %}

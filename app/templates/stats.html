@@ -1,0 +1,116 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <h1>Statistiky</h1>
+  <p>Souhrn výkonu podle kategorií, obtížnosti a TOP hráčů.</p>
+</section>
+
+<section class="stats-grid">
+  <article class="panel chart-panel">
+    <h2>Pokusy podle kategorií</h2>
+    <canvas id="categoryAttemptsChart"></canvas>
+  </article>
+
+  <article class="panel chart-panel">
+    <h2>Průměrná úspěšnost podle obtížnosti</h2>
+    <canvas id="difficultySuccessChart"></canvas>
+  </article>
+</section>
+
+<section class="panel">
+  <h2>TOP hráči (průměrná úspěšnost)</h2>
+  <div class="table-wrap compact">
+    <table>
+      <thead>
+        <tr>
+          <th>Uživatel</th>
+          <th>Pokusy</th>
+          <th>Průměrná úspěšnost</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in top_users %}
+          <tr>
+            <td>{{ u.username }}</td>
+            <td>{{ u.attempts }}</td>
+            <td>{{ u.avg_success }} %</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="3" class="muted">Zatím nejsou k dispozici žádná data.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script>
+  const categoryStats = {{ category_stats | tojson }};
+  const difficultyStats = {{ difficulty_stats | tojson }};
+
+  const categoryLabels = categoryStats.map(item => item.name);
+  const categoryAttempts = categoryStats.map(item => Number(item.attempts || 0));
+  const chartPalette = ['#09637E', '#088395', '#7AB2B2', '#EBF4F6'];
+  const categoryBarColors = categoryLabels.map((_, index) => {
+    const base = chartPalette[index % chartPalette.length];
+    // Světlý odstín (#EBF4F6) v grafu lehce ztmavíme, aby nepůsobil jako bílý.
+    return base === '#EBF4F6' ? '#CFE3E7' : base;
+  });
+  const categoryBarBorders = categoryLabels.map((_, index) => {
+    const base = chartPalette[index % chartPalette.length];
+    return base === '#EBF4F6' ? '#088395' : '#09637E';
+  });
+
+  const difficultyLabels = difficultyStats.map(item => item.name);
+  const difficultySuccess = difficultyStats.map(item => Number(item.avg_success || 0));
+
+  new Chart(document.getElementById('categoryAttemptsChart'), {
+    type: 'bar',
+    data: {
+      labels: categoryLabels,
+      datasets: [{
+        label: 'Počet pokusů',
+        data: categoryAttempts,
+        backgroundColor: categoryBarColors,
+        borderColor: categoryBarBorders,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  new Chart(document.getElementById('difficultySuccessChart'), {
+    type: 'line',
+    data: {
+      labels: difficultyLabels,
+      datasets: [{
+        label: 'Úspěšnost (%)',
+        data: difficultySuccess,
+        borderColor: '#09637E',
+        backgroundColor: 'rgba(8, 131, 149, 0.18)',
+        pointBackgroundColor: '#088395',
+        fill: true,
+        tension: 0.35
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          suggestedMax: 100
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}
+

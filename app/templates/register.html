@@ -1,0 +1,25 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<section class="form-section narrow">
+  <div class="panel">
+    <h1>Web registrace</h1>
+    <p>Po registraci můžeš stejný účet použít ve webu i v desktopové hře.</p>
+
+    <form method="post" class="form-grid">
+      <label for="username">Uživatelské jméno</label>
+      <input id="username" name="username" type="text" autocomplete="username" minlength="3" required>
+
+      <label for="password">Heslo</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" minlength="4" required>
+
+      <label for="password2">Heslo znovu</label>
+      <input id="password2" name="password2" type="password" autocomplete="new-password" minlength="4" required>
+
+      <button class="btn btn-primary" type="submit">Vytvořit účet</button>
+    </form>
+
+    <p>Už účet máš? <a href="{{ url_for('login') }}">Přihlas se</a>.</p>
+  </div>
+</section>
+{% endblock %}

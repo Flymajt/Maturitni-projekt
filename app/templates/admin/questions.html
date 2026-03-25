@@ -1,0 +1,85 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head split">
+  <div>
+    <h1>Správa otázek</h1>
+  </div>
+  <div class="form-actions">
+    <a class="btn btn-outline" href="{{ url_for('admin_categories') }}">Správa kategorií</a>
+    <a class="btn btn-primary" href="{{ url_for('admin_question_new') }}">Nové otázky</a>
+  </div>
+</section>
+
+<section class="panel">
+  <form method="get" class="filter-grid">
+    <div>
+      <label for="q">Text otázky</label>
+      <input id="q" name="q" type="text" value="{{ search }}" placeholder="hledat v textu">
+    </div>
+
+    <div>
+      <label for="category_id">Kategorie</label>
+      <select id="category_id" name="category_id">
+        <option value="">Všechny</option>
+        {% for c in categories %}
+          <option value="{{ c.category_id }}" {% if category_id == c.category_id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label for="difficulty_id">Obtížnost</label>
+      <select id="difficulty_id" name="difficulty_id">
+        <option value="">Všechny</option>
+        {% for d in difficulties %}
+          <option value="{{ d.difficulty_id }}" {% if difficulty_id == d.difficulty_id %}selected{% endif %}>{{ d.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-actions">
+      <button class="btn btn-primary" type="submit">Filtrovat</button>
+      <a class="btn btn-outline" href="{{ url_for('admin_questions') }}">Reset</a>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Otázka</th>
+          <th>Kategorie</th>
+          <th>Obtížnost</th>
+          <th>Správně</th>
+          <th>Akce</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for q in questions %}
+          <tr>
+            <td>{{ q.question_id }}</td>
+            <td>{{ q.question_text }}</td>
+            <td>{{ q.category or '-' }}</td>
+            <td>{{ q.difficulty }}</td>
+            <td><span class="badge">{{ q.correct_answer }}</span></td>
+            <td class="actions-cell">
+              <a class="btn btn-secondary btn-sm" href="{{ url_for('admin_question_edit', question_id=q.question_id) }}">Upravit</a>
+              <form method="post" action="{{ url_for('admin_question_delete', question_id=q.question_id) }}" onsubmit="return confirm('Opravdu chceš smazat tuto otázku?');">
+                <button class="btn btn-danger btn-sm" type="submit">Smazat</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="6" class="muted">Žádné otázky neodpovídají zadanému filtru.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

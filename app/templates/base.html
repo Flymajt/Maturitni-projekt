@@ -1,0 +1,61 @@
+﻿<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title or "Interaktivní kvízový systém" }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="page-bg"></div>
+
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="{{ url_for('home') }}">Kvízový Systém</a>
+      <nav class="main-nav">
+        <a href="{{ url_for('home') }}">Domů</a>
+        <a href="{{ url_for('leaderboard') }}">Leaderboard</a>
+        <a href="{{ url_for('stats_page') }}">Statistiky</a>
+        {% if current_user and current_user.role == 'admin' %}
+          <a href="{{ url_for('admin_dashboard') }}">Admin</a>
+        {% endif %}
+      </nav>
+
+      <div class="auth-nav">
+        {% if current_user %}
+          <span class="user-pill">Přihlášen jako: {{ current_user.username }}</span>
+          <a class="btn btn-outline" href="{{ url_for('logout') }}">Odhlásit</a>
+        {% else %}
+          <a class="btn btn-outline" href="{{ url_for('register') }}">Registrace</a>
+          <a class="btn btn-primary" href="{{ url_for('login') }}">Přihlášení</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <main class="container content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-list">
+          {% for category, message in messages %}
+            <li class="flash flash-{{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-wrap">
+      <p><strong>Interaktivní kvízový systém</strong></p>
+      
+    </div>
+  </footer>
+</body>
+</html>
+

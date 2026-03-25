@@ -1,0 +1,22 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<section class="form-section narrow">
+  <div class="panel">
+    <h1>Přihlášení na web</h1>
+    <p>Použij stejné údaje jako v desktopové aplikaci.</p>
+
+    <form method="post" class="form-grid">
+      <label for="username">Uživatelské jméno</label>
+      <input id="username" name="username" type="text" autocomplete="username" required>
+
+      <label for="password">Heslo</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+      <button class="btn btn-primary" type="submit">Přihlásit se</button>
+    </form>
+
+    <p>Nemáš účet? <a href="{{ url_for('register') }}">Zaregistruj se na webu</a>.</p>
+  </div>
+</section>
+{% endblock %}

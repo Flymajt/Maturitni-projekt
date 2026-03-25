@@ -1,0 +1,101 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <h1>Registrovaní uživatelé</h1>
+  <p>Správa uživatelů je na jedné stránce: vyber uživatele a dole proveď požadovanou úpravu.</p>
+</section>
+
+<section class="panel">
+  <h2>Seznam uživatelů</h2>
+  <div class="table-wrap compact">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Uživatelské jméno</th>
+          <th>Role</th>
+          <th>Vytvořeno</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+          <tr>
+            <td>{{ u.user_id }}</td>
+            <td>{{ u.username }}</td>
+            <td><span class="badge {% if u.role == 'admin' %}badge-admin{% endif %}">{{ u.role }}</span></td>
+            <td>{{ u.created_at }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="4" class="muted">V databázi zatím nejsou žádní uživatelé.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Různé úpravy uživatele</h2>
+  <form method="post" id="userManagementForm" class="form-grid">
+    <label for="selected_user_id">1) Vyber uživatele</label>
+    <select id="selected_user_id" name="selected_user_id" required>
+      <option value="">Vyber uživatele</option>
+      {% for u in users %}
+        <option value="{{ u.user_id }}" {% if selected_user_id == u.user_id %}selected{% endif %}>{{ u.username }} ({{ u.role }})</option>
+      {% endfor %}
+    </select>
+
+    <label for="admin_action">2) Vyber akci</label>
+    <select id="admin_action" name="admin_action" required>
+      <option value="">Vyber akci</option>
+      <option value="delete">Vymazat uživatele</option>
+      <option value="rename">Přejmenovat uživatele</option>
+      <option value="password">Změnit heslo uživatele</option>
+    </select>
+
+    <div id="renameFields" style="display:none;">
+      <label for="new_username">Nové uživatelské jméno</label>
+      <input id="new_username" name="new_username" type="text" minlength="3">
+    </div>
+
+    <div id="passwordFields" style="display:none;">
+      <label for="new_password">Nové heslo</label>
+      <input id="new_password" name="new_password" type="password" minlength="4">
+
+      <label for="new_password2">Nové heslo znovu</label>
+      <input id="new_password2" name="new_password2" type="password" minlength="4">
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Provést úpravu</button>
+    </div>
+  </form>
+</section>
+
+<script>
+  const actionSelect = document.getElementById('admin_action');
+  const renameFields = document.getElementById('renameFields');
+  const passwordFields = document.getElementById('passwordFields');
+  const form = document.getElementById('userManagementForm');
+
+  function updateActionFields() {
+    const action = actionSelect.value;
+    renameFields.style.display = action === 'rename' ? 'block' : 'none';
+    passwordFields.style.display = action === 'password' ? 'block' : 'none';
+  }
+
+  actionSelect.addEventListener('change', updateActionFields);
+  updateActionFields();
+
+  form.addEventListener('submit', (event) => {
+    if (actionSelect.value === 'delete') {
+      const ok = confirm('Opravdu chceš vymazat vybraného uživatele?');
+      if (!ok) {
+        event.preventDefault();
+      }
+    }
+  });
+</script>
+{% endblock %}

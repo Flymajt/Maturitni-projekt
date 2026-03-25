@@ -1,0 +1,150 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head split">
+  <div>
+    <h1>Správa výsledků</h1>
+    <p>Filtrace, hromadné mazání vybraných řádků a CSV import/export.</p>
+  </div>
+  <a class="btn btn-secondary" href="{{ url_for('results_export_csv', **export_params) }}">Export aktuálního filtru</a>
+</section>
+
+<section class="panel">
+  <form method="get" class="filter-grid">
+    <div>
+      <label for="username">Uživatel</label>
+      <select id="username" name="username">
+        <option value="">Všichni</option>
+        {% for u in options.users %}
+          <option value="{{ u.username }}" {% if filters.username == u.username %}selected{% endif %}>
+            {{ u.username }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label for="category_id">Kategorie</label>
+      <select id="category_id" name="category_id">
+        <option value="">Všechny</option>
+        {% for c in options.categories %}
+          <option value="{{ c.category_id }}" {% if filters.category_id == c.category_id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label for="difficulty_id">Obtížnost</label>
+      <select id="difficulty_id" name="difficulty_id">
+        <option value="">Všechny</option>
+        {% for d in options.difficulties %}
+          <option value="{{ d.difficulty_id }}" {% if filters.difficulty_id == d.difficulty_id %}selected{% endif %}>{{ d.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label for="date_from">Datum od</label>
+      <input id="date_from" name="date_from" type="date" value="{{ filters.date_from }}">
+    </div>
+
+    <div>
+      <label for="date_to">Datum do</label>
+      <input id="date_to" name="date_to" type="date" value="{{ filters.date_to }}">
+    </div>
+
+    <div>
+      <label for="order">Řazení</label>
+      <select id="order" name="order">
+        <option value="newest" {% if order == 'newest' %}selected{% endif %}>Nejnovější</option>
+        <option value="oldest" {% if order == 'oldest' %}selected{% endif %}>Nejstarší</option>
+        <option value="score_desc" {% if order == 'score_desc' %}selected{% endif %}>Skóre: nejvyšší</option>
+        <option value="score_asc" {% if order == 'score_asc' %}selected{% endif %}>Skóre: nejnižší</option>
+      </select>
+    </div>
+
+    <div class="filter-actions">
+      <button class="btn btn-primary" type="submit">Filtrovat</button>
+      <a class="btn btn-outline" href="{{ url_for('admin_results') }}">Reset</a>
+    </div>
+  </form>
+</section>
+
+<section class="panel import-panel">
+  <form method="post" action="{{ url_for('results_import') }}" enctype="multipart/form-data" class="inline-form">
+    <label for="csv_file">Import výsledků z CSV:</label>
+    <input id="csv_file" name="csv_file" type="file" accept=".csv" required>
+    <button class="btn btn-secondary" type="submit">Importovat</button>
+  </form>
+</section>
+
+<section class="panel">
+  <form method="post" id="bulkDeleteForm" onsubmit="return confirm('Opravdu chceš smazat vybrané výsledky?');">
+    <div class="table-actions">
+      <button class="btn btn-danger" type="submit">Smazat vybrané</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="checkAll"></th>
+            <th>ID</th>
+            <th>Uživatel</th>
+            <th>Téma</th>
+            <th>Obtížnost</th>
+            <th>Skóre</th>
+            <th>Úspěšnost</th>
+            <th>Datum</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td><input type="checkbox" name="selected_results" value="{{ r.result_id }}"></td>
+              <td>{{ r.result_id }}</td>
+              <td>{{ r.username }}</td>
+              <td>{{ r.category }}</td>
+              <td>{{ r.difficulty }}</td>
+              <td>{{ r.score }}/{{ r.total_questions }}</td>
+              <td>{{ r.success_pct }} %</td>
+              <td>{{ r.played_at }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="8" class="muted">Žádné výsledky neodpovídají filtru.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
+</section>
+
+<script>
+  const checkAll = document.getElementById('checkAll');
+  const dateFrom = document.getElementById('date_from');
+  const dateTo = document.getElementById('date_to');
+
+  function syncDateMin() {
+    if (!dateFrom || !dateTo) return;
+    dateTo.min = dateFrom.value || '';
+    if (dateFrom.value && dateTo.value && dateTo.value < dateFrom.value) {
+      dateTo.value = dateFrom.value;
+    }
+  }
+
+  if (dateFrom && dateTo) {
+    dateFrom.addEventListener('change', syncDateMin);
+    syncDateMin();
+  }
+
+  if (checkAll) {
+    checkAll.addEventListener('change', () => {
+      document.querySelectorAll('input[name="selected_results"]').forEach(cb => {
+        cb.checked = checkAll.checked;
+      });
+    });
+  }
+</script>
+{% endblock %}
