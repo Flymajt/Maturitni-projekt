@@ -1,0 +1,201 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head split">
+  <div>
+    <h1>Moje historie</h1>
+    <p>Detail všech tvých odehraných kvízů včetně trendu úspěšnosti.</p>
+  </div>
+  <a class="btn btn-outline" href="{{ url_for('profile') }}">Zpět na profil</a>
+</section>
+
+<section class="stats-grid">
+  <article class="panel">
+    <h2>Souhrn</h2>
+    <div class="profile-metric-grid">
+      <div class="profile-metric">
+        <span class="muted">Počet pokusů</span>
+        <strong>{{ summary.attempts }}</strong>
+      </div>
+      <div class="profile-metric">
+        <span class="muted">Průměrná úspěšnost</span>
+        <strong>{{ summary.avg_success_pct }} %</strong>
+      </div>
+      <div class="profile-metric">
+        <span class="muted">Celková úspěšnost</span>
+        <strong>{{ summary.overall_success_pct }} %</strong>
+      </div>
+      <div class="profile-metric">
+        <span class="muted">Nejlepší výsledek</span>
+        <strong>{{ summary.best_success_pct }} %</strong>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel chart-panel">
+    <h2>Úspěšnost posledních 10 her</h2>
+    <canvas id="historyTrendChart"></canvas>
+  </article>
+</section>
+
+<section class="panel">
+  <form method="get" class="filter-grid">
+    <div>
+      <label for="category_id">Kategorie</label>
+      <select id="category_id" name="category_id">
+        <option value="">Všechny</option>
+        {% for c in options.categories %}
+          <option value="{{ c.category_id }}" {% if filters.category_id == c.category_id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label for="difficulty_id">Obtížnost</label>
+      <select id="difficulty_id" name="difficulty_id">
+        <option value="">Všechny</option>
+        {% for d in options.difficulties %}
+          <option value="{{ d.difficulty_id }}" {% if filters.difficulty_id == d.difficulty_id %}selected{% endif %}>{{ d.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label for="order">Řazení</label>
+      <select id="order" name="order">
+        <option value="newest" {% if order == 'newest' %}selected{% endif %}>Nejnovější</option>
+        <option value="oldest" {% if order == 'oldest' %}selected{% endif %}>Nejstarší</option>
+        <option value="best" {% if order == 'best' %}selected{% endif %}>Nejlepší skóre</option>
+        <option value="worst" {% if order == 'worst' %}selected{% endif %}>Nejslabší skóre</option>
+        <option value="speedrun" {% if order == 'speedrun' %}selected{% endif %}>Nejlepší rychlost</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="date_from">Datum od</label>
+      <input id="date_from" name="date_from" type="date" value="{{ filters.date_from }}">
+    </div>
+
+    <div>
+      <label for="date_to">Datum do</label>
+      <input id="date_to" name="date_to" type="date" value="{{ filters.date_to }}">
+    </div>
+
+    <div class="filter-actions">
+      <button class="btn btn-primary" type="submit">Filtrovat</button>
+      <a class="btn btn-outline" href="{{ url_for('my_history') }}">Reset</a>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Kategorie</th>
+          <th>Obtížnost</th>
+          <th>Skóre</th>
+          <th>Úspěšnost</th>
+          <th>Speedrun</th>
+          <th>Datum</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td>{{ r.result_id }}</td>
+            <td>{{ r.category }}</td>
+            <td>{{ r.difficulty }}</td>
+            <td>{{ r.score }}/{{ r.total_questions }}</td>
+            <td>{{ r.success_pct }} %</td>
+            <td>{{ r.duration_seconds | format_duration }}</td>
+            <td>{{ r.played_at }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="7" class="muted">Zatím tu nejsou žádné výsledky pro zvolený filtr.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="pagination-wrap">
+  <div class="pagination-info">
+    Záznamy: {{ pagination.total_rows }} | Stránka {{ pagination.page }} z {{ pagination.total_pages }}
+  </div>
+  {% if pagination.total_pages > 1 %}
+    <nav class="pagination-nav" aria-label="Stránkování historie">
+      {% if pagination.has_prev %}
+        <a class="btn btn-outline btn-sm" href="{{ url_for('my_history', **pagination.prev_params) }}">Předchozí</a>
+      {% endif %}
+
+      {% for item in pagination.page_items %}
+        {% if item.number == pagination.page %}
+          <span class="pagination-current">{{ item.number }}</span>
+        {% else %}
+          <a class="btn btn-outline btn-sm" href="{{ url_for('my_history', **item.params) }}">{{ item.number }}</a>
+        {% endif %}
+      {% endfor %}
+
+      {% if pagination.has_next %}
+        <a class="btn btn-outline btn-sm" href="{{ url_for('my_history', **pagination.next_params) }}">Další</a>
+      {% endif %}
+    </nav>
+  {% endif %}
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script>
+  const trendRows = {{ trend_rows | tojson }};
+  const trendLabels = trendRows.map((_, index) => `Hra ${index + 1}`);
+  const trendValues = trendRows.map((row) => Number(row.success_pct || 0));
+
+  if (trendRows.length > 0) {
+    new Chart(document.getElementById('historyTrendChart'), {
+      type: 'line',
+      data: {
+        labels: trendLabels,
+        datasets: [{
+          label: 'Úspěšnost (%)',
+          data: trendValues,
+          borderColor: '#09637E',
+          backgroundColor: 'rgba(8, 131, 149, 0.18)',
+          pointBackgroundColor: '#088395',
+          fill: true,
+          tension: 0.35
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            suggestedMax: 100
+          }
+        }
+      }
+    });
+  }
+
+  const dateFrom = document.getElementById('date_from');
+  const dateTo = document.getElementById('date_to');
+
+  function syncDateMin() {
+    if (!dateFrom || !dateTo) return;
+    dateTo.min = dateFrom.value || '';
+    if (dateFrom.value && dateTo.value && dateTo.value < dateFrom.value) {
+      dateTo.value = dateFrom.value;
+    }
+  }
+
+  if (dateFrom && dateTo) {
+    dateFrom.addEventListener('change', syncDateMin);
+    syncDateMin();
+  }
+</script>
+{% endblock %}

@@ -29,6 +29,12 @@ QFrame#Card {
     border-radius: 18px;
 }
 
+QFrame#InfoCard {
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid #7AB2B2;
+    border-radius: 12px;
+}
+
 QLabel {
     color: #09637E;
     font-weight: 600;
@@ -49,6 +55,34 @@ QLabel#Hint {
     color: #088395;
     font-size: 13px;
     font-weight: 500;
+}
+
+QLabel#InfoTitle {
+    color: #09637E;
+    font-size: 14px;
+    font-weight: 800;
+    margin-top: 2px;
+    background-color: transparent;
+    border: none;
+    padding: 0;
+}
+
+QLabel#InfoTag {
+    color: #EBF4F6;
+    background-color: #09637E;
+    border-radius: 9px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+QLabel#InfoText {
+    color: #088395;
+    font-size: 13px;
+    font-weight: 600;
+    background-color: transparent;
+    border: none;
+    padding: 0;
 }
 
 QLabel#MetaPill {
@@ -97,6 +131,18 @@ QPushButton#AnswerButton {
     font-weight: 800;
     padding: 14px;
     text-align: left;
+}
+
+QPushButton#ReportButton {
+    font-size: 14px;
+    font-weight: 700;
+    padding: 7px 10px;
+    border-radius: 10px;
+    background-color: #0A6F8E;
+}
+
+QPushButton#ReportButton:hover {
+    background-color: #088395;
 }
 
 QLineEdit, QComboBox, QTextEdit {

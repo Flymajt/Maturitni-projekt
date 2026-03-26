@@ -3,6 +3,7 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QFormLayout,
     QFrame,
+    QHBoxLayout,
     QLabel,
     QMessageBox,
     QPushButton,
@@ -10,7 +11,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from app.desktop.db import get_categories, get_difficulties, get_questions
+from app.desktop.db import get_categories, get_difficulties, get_questions, get_training_questions
 from app.desktop.ui.quiz_window import QuizWindow
 
 
@@ -43,7 +44,7 @@ class StartWindow(QWidget):
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
-        info = QLabel(f"Přihlášený hráč: {user['username']} • Vyber kategorii a obtížnost")
+        info = QLabel(f"Přihlášený hráč: {user['username']} • Vyber kategorii, obtížnost a režim")
         info.setAlignment(Qt.AlignCenter)
         info.setObjectName("Subtitle")
         layout.addWidget(info)
@@ -58,9 +59,12 @@ class StartWindow(QWidget):
         self.category_cb.setMinimumHeight(46)
         self.categories = get_categories()
         self.category_name_by_id = {}
+        self.category_description_by_id = {}
         for c in self.categories:
             self.category_cb.addItem(c["name"], c["category_id"])
             self.category_name_by_id[c["category_id"]] = c["name"]
+            self.category_description_by_id[c["category_id"]] = (c.get("description") or "").strip()
+        self.category_cb.setCurrentIndex(0)
 
         self.difficulty_cb = QComboBox()
         self.difficulty_cb.setMinimumHeight(46)
@@ -70,9 +74,42 @@ class StartWindow(QWidget):
             self.difficulty_cb.addItem(d["name"], d["difficulty_id"])
             self.difficulty_name_by_id[d["difficulty_id"]] = d["name"]
 
+        self.mode_cb = QComboBox()
+        self.mode_cb.setMinimumHeight(46)
+        self.mode_cb.addItem("Normální kvíz", "normal")
+        self.mode_cb.addItem("Trénink chyb", "training")
+
         form.addRow(QLabel("Kategorie"), self.category_cb)
         form.addRow(QLabel("Obtížnost"), self.difficulty_cb)
+        form.addRow(QLabel("Režim"), self.mode_cb)
         layout.addLayout(form)
+
+        category_info_card = QFrame()
+        category_info_card.setObjectName("InfoCard")
+        category_info_layout = QVBoxLayout(category_info_card)
+        category_info_layout.setContentsMargins(14, 12, 14, 12)
+        category_info_layout.setSpacing(8)
+
+        category_info_head = QHBoxLayout()
+        category_info_head.setContentsMargins(0, 0, 0, 0)
+        category_info_head.setSpacing(8)
+
+        info_title = QLabel("Popis vybrané kategorie")
+        info_title.setObjectName("InfoTitle")
+        category_info_head.addWidget(info_title)
+        category_info_head.addStretch(1)
+
+        self.category_selected_lbl = QLabel("")
+        self.category_selected_lbl.setObjectName("InfoTag")
+        category_info_head.addWidget(self.category_selected_lbl)
+        category_info_layout.addLayout(category_info_head)
+
+        self.category_description_lbl = QLabel("")
+        self.category_description_lbl.setObjectName("InfoText")
+        self.category_description_lbl.setWordWrap(True)
+        category_info_layout.addWidget(self.category_description_lbl)
+
+        layout.addWidget(category_info_card)
 
         self.start_btn = QPushButton("Start kvízu")
         self.start_btn.setObjectName("PrimaryButton")
@@ -81,11 +118,31 @@ class StartWindow(QWidget):
         layout.addWidget(self.start_btn)
 
         root_layout.addWidget(card, 0, Qt.AlignCenter)
+        self.category_cb.currentIndexChanged.connect(self._update_category_info)
+        self._update_category_info()
+
+    def _update_category_info(self):
+        """Aktualizuje panel s popisem vybrané kategorie."""
+        category_id = self.category_cb.currentData()
+        category_name = self.category_name_by_id.get(category_id, "")
+        description = self.category_description_by_id.get(category_id, "")
+        self.category_selected_lbl.setText(category_name or "-")
+
+        self.category_description_lbl.setText(
+            description
+            if category_id is not None and description
+            else (
+                "Pro tuto kategorii zatím není vyplněný popis."
+                if category_id is not None
+                else "-"
+            )
+        )
 
     def start_quiz(self):
         """Načte otázky dle výběru a otevře herní okno."""
         category_id = self.category_cb.currentData()
         difficulty_id = self.difficulty_cb.currentData()
+        mode = self.mode_cb.currentData()
 
         category_name = self.category_name_by_id.get(category_id, "")
         difficulty_name = self.difficulty_name_by_id.get(difficulty_id, "")
@@ -97,7 +154,24 @@ class StartWindow(QWidget):
             # Budoucí kategorie nemají pevný počet podle obtížnosti.
             limit = 5
 
-        questions = get_questions(category_id, difficulty_id, limit=limit)
+        if mode == "training":
+            questions = get_training_questions(
+                user_id=self.user["user_id"],
+                category_id=category_id,
+                difficulty_id=difficulty_id,
+                limit=limit,
+            )
+            if not questions:
+                QMessageBox.information(
+                    self,
+                    "Trénink chyb",
+                    "Pro tento výběr zatím nemáš žádné špatně zodpovězené otázky.\n"
+                    "Nejdřív si zahraj normální kvíz, a pak se sem vrať.",
+                )
+                return
+        else:
+            questions = get_questions(category_id, difficulty_id, limit=limit)
+
         if not questions:
             QMessageBox.warning(self, "Chyba", "Pro tento výběr nejsou otázky.")
             return
@@ -107,6 +181,7 @@ class StartWindow(QWidget):
             category_id=category_id,
             difficulty_id=difficulty_id,
             questions=questions,
+            mode=mode,
         )
         self.quiz_window.show()
         self.close()

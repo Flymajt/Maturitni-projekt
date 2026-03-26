@@ -18,11 +18,13 @@ from flask import (
 
 from app import app
 from app.db import (
+    count_question_reports,
     create_category,
     create_user,
     create_questions_bulk,
     count_questions,
     count_filtered_results,
+    count_user_history_rows,
     delete_category,
     delete_user_by_id,
     delete_question,
@@ -34,13 +36,18 @@ from app.db import (
     get_filtered_results,
     get_question_by_id,
     get_recent_results,
+    get_user_history_rows,
+    get_user_history_summary,
+    get_user_history_trend,
     get_stats_by_category,
     get_stats_by_difficulty,
     get_top_users,
     get_users_simple,
+    get_question_reports,
     import_results_csv,
     list_questions,
     get_user_profile_summary,
+    update_question_report_status,
     update_category_description,
     update_user_profile_title,
     update_user_password,
@@ -138,6 +145,28 @@ def _admin_questions_query_dict(
         params["category_id"] = category_id
     if difficulty_id:
         params["difficulty_id"] = difficulty_id
+    if page > 1:
+        params["page"] = page
+    return params
+
+
+def _history_filters_query_with_page(filters, order, page: int):
+    """Převede filtry stránky Moje historie do URL parametrů včetně stránky."""
+    params = {"order": order}
+    for key in ("category_id", "difficulty_id", "date_from", "date_to"):
+        value = filters.get(key)
+        if value not in (None, ""):
+            params[key] = value
+    if page > 1:
+        params["page"] = page
+    return params
+
+
+def _admin_reports_query_dict(status: str, page: int):
+    """Převede filtry stránky hlášení otázek do URL parametrů."""
+    params = {}
+    if status:
+        params["status"] = status
     if page > 1:
         params["page"] = page
     return params
@@ -343,6 +372,83 @@ def profile():
     )
 
 
+@app.route("/my-history")
+@login_required
+def my_history():
+    """Historie kvízů přihlášeného uživatele s filtrováním a trendem."""
+    per_page = 15
+    user_id = session.get("user_id")
+
+    filters = {
+        "category_id": _to_int(request.args.get("category_id")),
+        "difficulty_id": _to_int(request.args.get("difficulty_id")),
+        "date_from": (request.args.get("date_from") or "").strip(),
+        "date_to": (request.args.get("date_to") or "").strip(),
+    }
+    order = request.args.get("order", "newest")
+    page = _to_int(request.args.get("page")) or 1
+    if page < 1:
+        page = 1
+
+    raw_date_from = filters.get("date_from", "")
+    raw_date_to = filters.get("date_to", "")
+    filters["date_from"] = _to_iso_date_or_empty(raw_date_from)
+    filters["date_to"] = _to_iso_date_or_empty(raw_date_to)
+
+    if raw_date_from and not filters["date_from"]:
+        flash("Datum od má neplatný formát.", "warning")
+    if raw_date_to and not filters["date_to"]:
+        flash("Datum do má neplatný formát.", "warning")
+    if filters["date_from"] and filters["date_to"] and filters["date_to"] < filters["date_from"]:
+        filters["date_to"] = filters["date_from"]
+        flash("Datum do nemůže být menší než datum od. Automaticky jsem ho upravil.", "warning")
+
+    total_rows = count_user_history_rows(user_id=user_id, filters=filters)
+    total_pages = max(1, (total_rows + per_page - 1) // per_page)
+    if page > total_pages:
+        page = total_pages
+
+    rows = get_user_history_rows(
+        user_id=user_id,
+        filters=filters,
+        order=order,
+        limit=per_page,
+        offset=(page - 1) * per_page,
+    )
+    summary = get_user_history_summary(user_id=user_id, filters=filters)
+    trend_rows = get_user_history_trend(user_id=user_id, limit=10, filters=filters)
+
+    start_page = max(1, page - 2)
+    end_page = min(total_pages, page + 2)
+    page_items = [
+        {"number": p, "params": _history_filters_query_with_page(filters, order, p)}
+        for p in range(start_page, end_page + 1)
+    ]
+
+    return render_template(
+        "my_history.html",
+        rows=rows,
+        summary=summary,
+        trend_rows=trend_rows,
+        filters=filters,
+        order=order,
+        options={
+            "categories": get_categories(),
+            "difficulties": get_difficulties(),
+        },
+        pagination={
+            "page": page,
+            "total_rows": total_rows,
+            "total_pages": total_pages,
+            "has_prev": page > 1,
+            "has_next": page < total_pages,
+            "prev_params": _history_filters_query_with_page(filters, order, page - 1),
+            "next_params": _history_filters_query_with_page(filters, order, page + 1),
+            "page_items": page_items,
+        },
+    )
+
+
 @app.route("/leaderboard")
 def leaderboard():
     """Veřejný leaderboard s filtrováním, řazením a exportem do CSV."""
@@ -474,6 +580,91 @@ def stats_page():
 def admin_dashboard():
     """Hlavní dashboard administrace."""
     return render_template("admin/dashboard.html")
+
+
+@app.route("/admin/reports", methods=["GET", "POST"])
+@admin_required
+def admin_reports():
+    """Admin přehled nahlášených otázek včetně změny statusu."""
+    allowed_statuses = {"new", "reviewed", "resolved", "rejected"}
+    raw_status = (request.args.get("status") or "").strip().lower()
+    status = raw_status if raw_status in allowed_statuses else ""
+    if raw_status and not status:
+        flash("Neplatný filtr statusu. Zobrazuji všechna hlášení.", "warning")
+
+    page = _to_int(request.args.get("page")) or 1
+    if page < 1:
+        page = 1
+    per_page = 15
+
+    if request.method == "POST":
+        report_id = _to_int(request.form.get("report_id"))
+        new_status = (request.form.get("new_status") or "").strip().lower()
+        current_status = (request.form.get("current_status") or "").strip().lower()
+        redirect_page = _to_int(request.form.get("redirect_page")) or 1
+        redirect_params = _admin_reports_query_dict(current_status if current_status in allowed_statuses else "", redirect_page)
+
+        if not report_id:
+            flash("Neplatné ID hlášení.", "danger")
+            return redirect(url_for("admin_reports", **redirect_params))
+
+        try:
+            changed = update_question_report_status(
+                report_id=report_id,
+                new_status=new_status,
+                resolved_by=session.get("user_id"),
+            )
+            if changed:
+                flash("Status hlášení byl úspěšně změněn.", "success")
+            else:
+                flash("Hlášení nebylo nalezeno nebo se nic nezměnilo.", "warning")
+        except ValueError as exc:
+            flash(str(exc), "danger")
+        except Exception as exc:
+            flash(f"Status hlášení se nepodařilo uložit: {exc}", "danger")
+
+        return redirect(url_for("admin_reports", **redirect_params))
+
+    total_rows = count_question_reports(status=status or None)
+    total_pages = max(1, (total_rows + per_page - 1) // per_page)
+    if page > total_pages:
+        page = total_pages
+
+    rows = get_question_reports(
+        status=status or None,
+        limit=per_page,
+        offset=(page - 1) * per_page,
+    )
+
+    start_page = max(1, page - 2)
+    end_page = min(total_pages, page + 2)
+    page_items = [
+        {"number": p, "params": _admin_reports_query_dict(status, p)}
+        for p in range(start_page, end_page + 1)
+    ]
+
+    return render_template(
+        "admin/reports.html",
+        rows=rows,
+        status=status,
+        statuses=["new", "reviewed", "resolved", "rejected"],
+        status_labels={
+            "new": "Nové",
+            "reviewed": "Zkontrolované",
+            "resolved": "Vyřešené",
+            "rejected": "Zamítnuté",
+        },
+        pagination={
+            "page": page,
+            "total_rows": total_rows,
+            "total_pages": total_pages,
+            "has_prev": page > 1,
+            "has_next": page < total_pages,
+            "prev_params": _admin_reports_query_dict(status, page - 1),
+            "next_params": _admin_reports_query_dict(status, page + 1),
+            "page_items": page_items,
+        },
+    )
 
 
 @app.route("/admin/questions")

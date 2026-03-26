@@ -6,6 +6,8 @@ import mysql.connector
 from config import Config
 
 _duration_column_checked = False
+_question_attempts_table_checked = False
+_question_reports_table_checked = False
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +82,85 @@ def ensure_results_duration_column():
         conn.close()
 
 
+def ensure_question_attempts_table():
+    """Zajistí existenci tabulky question_attempts."""
+    global _question_attempts_table_checked
+    if _question_attempts_table_checked:
+        return
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SHOW TABLES LIKE 'question_attempts';")
+        exists = cur.fetchone()
+        if not exists:
+            cur.execute(
+                """
+                CREATE TABLE question_attempts (
+                    attempt_id INT PRIMARY KEY AUTO_INCREMENT,
+                    user_id INT NOT NULL,
+                    question_id INT NOT NULL,
+                    category_id INT NOT NULL,
+                    difficulty_id INT NOT NULL,
+                    is_correct TINYINT(1) NOT NULL,
+                    mode VARCHAR(20) NOT NULL DEFAULT 'normal',
+                    answered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_attempts_user_question (user_id, question_id),
+                    INDEX idx_attempts_user_time (user_id, answered_at),
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                    FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE,
+                    FOREIGN KEY (category_id) REFERENCES categories(category_id),
+                    FOREIGN KEY (difficulty_id) REFERENCES difficulties(difficulty_id)
+                );
+                """
+            )
+            conn.commit()
+        _question_attempts_table_checked = True
+    finally:
+        cur.close()
+        conn.close()
+
+
+def ensure_question_reports_table():
+    """Zajistí existenci tabulky question_reports."""
+    global _question_reports_table_checked
+    if _question_reports_table_checked:
+        return
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SHOW TABLES LIKE 'question_reports';")
+        exists = cur.fetchone()
+        if not exists:
+            cur.execute(
+                """
+                CREATE TABLE question_reports (
+                    report_id INT PRIMARY KEY AUTO_INCREMENT,
+                    question_id INT NOT NULL,
+                    user_id INT NOT NULL,
+                    reason VARCHAR(60) NOT NULL,
+                    note VARCHAR(500),
+                    status VARCHAR(20) NOT NULL DEFAULT 'new',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    resolved_by INT NULL,
+                    INDEX idx_reports_status (status),
+                    INDEX idx_reports_question (question_id),
+                    INDEX idx_reports_user_time (user_id, created_at),
+                    FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE,
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                    FOREIGN KEY (resolved_by) REFERENCES users(user_id) ON DELETE SET NULL
+                );
+                """
+            )
+            conn.commit()
+        _question_reports_table_checked = True
+    finally:
+        cur.close()
+        conn.close()
+
+
 # ---------------------------------------------------------------------------
 # Registrace / login
 # ---------------------------------------------------------------------------
@@ -129,7 +210,7 @@ def verify_login(username: str, password: str):
 
 def get_categories():
     """Vrátí všechny kategorie seřazené podle názvu."""
-    return fetch_all("SELECT category_id, name FROM categories ORDER BY name;")
+    return fetch_all("SELECT category_id, name, description FROM categories ORDER BY name;")
 
 
 def get_difficulties():
@@ -166,3 +247,75 @@ def save_result(user_id, category_id, difficulty_id, score, total_questions, dur
     VALUES (%s, %s, %s, %s, %s, %s);
     """
     execute(sql, (user_id, category_id, difficulty_id, score, total_questions, duration_seconds))
+
+
+def save_question_attempt(user_id, question_id, category_id, difficulty_id, is_correct, mode="normal"):
+    """Uloží jednotlivý pokus na otázce (pro trénink chyb i analytiku)."""
+    ensure_question_attempts_table()
+    sql = """
+    INSERT INTO question_attempts (
+        user_id, question_id, category_id, difficulty_id, is_correct, mode
+    )
+    VALUES (%s, %s, %s, %s, %s, %s);
+    """
+    execute(
+        sql,
+        (
+            user_id,
+            question_id,
+            category_id,
+            difficulty_id,
+            1 if is_correct else 0,
+            (mode or "normal")[:20],
+        ),
+    )
+
+
+def get_training_questions(user_id, category_id, difficulty_id, limit=10):
+    """
+    Načte otázky pro režim Trénink chyb.
+
+    Vybírá otázky, kde poslední odpověď daného uživatele byla špatně.
+    """
+    ensure_question_attempts_table()
+    sql = """
+    SELECT
+        q.question_id,
+        q.question_text,
+        q.answer_a,
+        q.answer_b,
+        q.answer_c,
+        q.answer_d,
+        q.correct_answer
+    FROM question_attempts qa
+    JOIN questions q ON q.question_id = qa.question_id
+    JOIN questions_categories qc ON qc.question_id = q.question_id
+    WHERE qa.user_id = %s
+      AND qa.category_id = %s
+      AND qa.difficulty_id = %s
+      AND qc.category_id = %s
+      AND qa.attempt_id = (
+          SELECT qa2.attempt_id
+          FROM question_attempts qa2
+          WHERE qa2.user_id = qa.user_id
+            AND qa2.question_id = qa.question_id
+          ORDER BY qa2.answered_at DESC, qa2.attempt_id DESC
+          LIMIT 1
+      )
+      AND qa.is_correct = 0
+    ORDER BY qa.answered_at DESC
+    LIMIT %s;
+    """
+    return fetch_all(sql, (user_id, category_id, difficulty_id, category_id, limit))
+
+
+def create_question_report(question_id, user_id, reason, note=""):
+    """Vytvoří hlášení otázky z desktop aplikace."""
+    ensure_question_reports_table()
+    sql = """
+    INSERT INTO question_reports (question_id, user_id, reason, note)
+    VALUES (%s, %s, %s, %s);
+    """
+    clean_reason = (reason or "").strip()[:60]
+    clean_note = (note or "").strip()[:500]
+    execute(sql, (question_id, user_id, clean_reason, clean_note or None))

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head split">
+  <div>
+    <h1>Hlášení otázek</h1>
+    <p>Přehled nahlášených problémů od hráčů a jejich vyřešení.</p>
+  </div>
+  <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">Zpět na dashboard</a>
+</section>
+
+<section class="panel">
+  <form method="get" class="filter-grid">
+    <div>
+      <label for="status">Status</label>
+      <select id="status" name="status">
+        <option value="" {% if not status %}selected{% endif %}>Všechny</option>
+        {% for s in statuses %}
+          <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ status_labels[s] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-actions">
+      <button class="btn btn-primary" type="submit">Filtrovat</button>
+      <a class="btn btn-outline" href="{{ url_for('admin_reports') }}">Reset</a>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Status</th>
+          <th>Otázka</th>
+          <th>Nahlásil</th>
+          <th>Důvod</th>
+          <th>Poznámka</th>
+          <th>Vytvořeno</th>
+          <th>Akce</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td>{{ r.report_id }}</td>
+            <td><span class="badge report-status report-{{ r.status }}">{{ status_labels.get(r.status, r.status) }}</span></td>
+            <td>
+              <strong>#{{ r.question_id }}</strong><br>
+              <span class="muted">{{ r.question_text }}</span>
+            </td>
+            <td>{{ r.reporter_username }}</td>
+            <td>{{ r.reason }}</td>
+            <td>{{ r.note or '-' }}</td>
+            <td>{{ r.created_at }}</td>
+            <td>
+              <form method="post" class="form-grid report-action-form">
+                <input type="hidden" name="report_id" value="{{ r.report_id }}">
+                <input type="hidden" name="current_status" value="{{ status }}">
+                <input type="hidden" name="redirect_page" value="{{ pagination.page }}">
+                <select name="new_status" required>
+                  {% for s in statuses %}
+                    <option value="{{ s }}" {% if r.status == s %}selected{% endif %}>{{ status_labels[s] }}</option>
+                  {% endfor %}
+                </select>
+                <button class="btn btn-secondary btn-sm" type="submit">Uložit</button>
+              </form>
+              {% if r.resolved_by_username %}
+                <small class="muted">Naposledy upravil: {{ r.resolved_by_username }}</small>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="8" class="muted">Žádná hlášení pro tento filtr.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="pagination-wrap">
+  <div class="pagination-info">
+    Záznamy: {{ pagination.total_rows }} | Stránka {{ pagination.page }} z {{ pagination.total_pages }}
+  </div>
+  {% if pagination.total_pages > 1 %}
+    <nav class="pagination-nav" aria-label="Stránkování hlášení">
+      {% if pagination.has_prev %}
+        <a class="btn btn-outline btn-sm" href="{{ url_for('admin_reports', **pagination.prev_params) }}">Předchozí</a>
+      {% endif %}
+
+      {% for item in pagination.page_items %}
+        {% if item.number == pagination.page %}
+          <span class="pagination-current">{{ item.number }}</span>
+        {% else %}
+          <a class="btn btn-outline btn-sm" href="{{ url_for('admin_reports', **item.params) }}">{{ item.number }}</a>
+        {% endif %}
+      {% endfor %}
+
+      {% if pagination.has_next %}
+        <a class="btn btn-outline btn-sm" href="{{ url_for('admin_reports', **pagination.next_params) }}">Další</a>
+      {% endif %}
+    </nav>
+  {% endif %}
+</section>
+{% endblock %}

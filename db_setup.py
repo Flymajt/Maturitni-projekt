@@ -14,7 +14,7 @@ def _hash_password(password: str) -> str:
 
 
 def _question_seed_data():
-    """Vrátí seznam všech otázek pro 3 původní kategorie."""
+    """Vrátí seznam všech otázek pro aktuální 4 kategorie."""
     return [
         # IT / Easy (3)
         ("IT", "Easy", "Co znamená zkratka CPU?", "Central Processing Unit", "Computer Power Unit", "Core Process Utility", "Central Program Usage", "A"),
@@ -78,6 +78,27 @@ def _question_seed_data():
         ("Historie", "Hard", "Ve kterém roce začala Velká francouzská revoluce?", "1776", "1789", "1812", "1848", "B"),
         ("Historie", "Hard", "Který český král je znám jako Otec vlasti?", "Přemysl Otakar II.", "Václav II.", "Jiří z Poděbrad", "Karel IV.", "D"),
         ("Historie", "Hard", "Jak se jmenovala smlouva, která ukončila první světovou válku s Německem?", "Mnichovská", "Trianonská", "Versailleská", "Brestlitevský mír", "C"),
+
+        # Příroda / Easy (3)
+        ("Příroda", "Easy", "Jaké zvíře je známé jako „král zvířat“?", "Tygr", "Lev", "Slon", "Medvěd", "B"),
+        ("Příroda", "Easy", "Jakou barvu má chlorofyl?", "Červenou", "Modrou", "Zelenou", "Žlutou", "C"),
+        ("Příroda", "Easy", "Co dýchají lidé k přežití?", "Dusík", "Vodík", "Oxid uhličitý", "Kyslík", "D"),
+
+        # Příroda / Medium (5)
+        ("Příroda", "Medium", "Který orgán je hlavním místem fotosyntézy u rostlin?", "List", "Kořen", "Stonek", "Květ", "A"),
+        ("Příroda", "Medium", "Kolik kostí má dospělý člověk přibližně?", "106", "306", "206", "406", "C"),
+        ("Příroda", "Medium", "Jaké je největší suchozemské zvíře?", "Nosorožec", "Hroch", "Žirafa", "Slon africký", "D"),
+        ("Příroda", "Medium", "Která planeta je nejblíže Slunci?", "Venuše", "Merkur", "Země", "Mars", "B"),
+        ("Příroda", "Medium", "Co způsobuje střídání ročních období na Zemi?", "Vzdálenost od Slunce", "Rotace Země", "Naklonění zemské osy", "Gravitace Měsíce", "C"),
+
+        # Příroda / Hard (7)
+        ("Příroda", "Hard", "Který proces umožňuje rostlinám přeměnit světelnou energii na chemickou?", "Dýchání", "Fotosyntéza", "Fermentace", "Transpirace", "B"),
+        ("Příroda", "Hard", "Jaký je nejhlubší známý oceánský příkop na Zemi?", "Tonga příkop", "Kermadecký příkop", "Jávský příkop", "Mariánský příkop", "D"),
+        ("Příroda", "Hard", "Který plyn tvoří největší část zemské atmosféry?", "Kyslík", "Oxid uhličitý", "Dusík", "Argon", "C"),
+        ("Příroda", "Hard", "Jak se nazývá proces, při kterém se pevná látka mění přímo na plyn?", "Kondenzace", "Sublimace", "Depozice", "Evaporace", "B"),
+        ("Příroda", "Hard", "Který biom je charakteristický permafrostem?", "Savana", "Tundra", "Tropický prales", "Step", "B"),
+        ("Příroda", "Hard", "Jaký typ horniny vzniká ochlazením magmatu?", "Vyvřelá", "Sedimentární", "Metamorfovaná", "Organická", "A"),
+        ("Příroda", "Hard", "Který z těchto živočichů má otevřenou oběhovou soustavu?", "Rak", "Žížala", "Chobotnice", "Pták", "A"),
     ]
 
 
@@ -97,6 +118,8 @@ def main():
     mydb.commit()
 
     # DROP tabulek
+    mycursor.execute("DROP TABLE IF EXISTS question_reports;")
+    mycursor.execute("DROP TABLE IF EXISTS question_attempts;")
     mycursor.execute("DROP TABLE IF EXISTS results;")
     mycursor.execute("DROP TABLE IF EXISTS questions_categories;")
     mycursor.execute("DROP TABLE IF EXISTS questions;")
@@ -185,6 +208,47 @@ def main():
     )
     mydb.commit()
 
+    mycursor.execute(
+        """CREATE TABLE question_attempts(
+        attempt_id int PRIMARY KEY AUTO_INCREMENT,
+        user_id int NOT NULL,
+        question_id int NOT NULL,
+        category_id int NOT NULL,
+        difficulty_id int NOT NULL,
+        is_correct tinyint(1) NOT NULL,
+        mode varchar(20) NOT NULL DEFAULT 'normal',
+        answered_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_attempts_user_question (user_id, question_id),
+        INDEX idx_attempts_user_time (user_id, answered_at),
+        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+        FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE,
+        FOREIGN KEY (category_id) REFERENCES categories(category_id),
+        FOREIGN KEY (difficulty_id) REFERENCES difficulties(difficulty_id)
+    );"""
+    )
+    mydb.commit()
+
+    mycursor.execute(
+        """CREATE TABLE question_reports(
+        report_id int PRIMARY KEY AUTO_INCREMENT,
+        question_id int NOT NULL,
+        user_id int NOT NULL,
+        reason varchar(60) NOT NULL,
+        note varchar(500),
+        status varchar(20) NOT NULL DEFAULT 'new',
+        created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        resolved_by int NULL,
+        INDEX idx_reports_status (status),
+        INDEX idx_reports_question (question_id),
+        INDEX idx_reports_user_time (user_id, created_at),
+        FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+        FOREIGN KEY (resolved_by) REFERENCES users(user_id) ON DELETE SET NULL
+    );"""
+    )
+    mydb.commit()
+
     # INSERT: admin
     admin_hash = _hash_password(Config.ADMIN_DEFAULT_PASSWORD)
     mycursor.execute(
@@ -198,9 +262,10 @@ def main():
     mycursor.execute(
         """INSERT INTO categories(name, description)
         VALUES
-        ('IT','Zaklady IT'),
-        ('Sport','Sportovni otazky'),
-        ('Historie','Historie');
+        ('IT','Různé otázky ze světa technologií.'),
+        ('Sport','Otázky ze světa sportu.'),
+        ('Historie','Otázky z minulosti i významných událostí.'),
+        ('Příroda','Znalosti o přírodě, zvířatech, rostlinách a Zemi.');
     """
     )
     mydb.commit()
@@ -257,7 +322,7 @@ def main():
     mycursor.close()
     mydb.close()
 
-    print("Hotovo: 3 temata, Easy=3, Medium=5, Hard=7 na kazde tema (celkem 45 otazek).")
+    print("Hotovo: 4 témata, Easy=3, Medium=5, Hard=7 na každé téma (celkem 60 otázek).")
 
 
 if __name__ == "__main__":

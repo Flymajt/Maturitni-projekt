@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMessageBox,
     QPushButton,
@@ -13,14 +14,14 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from app.desktop.db import save_result
+from app.desktop.db import create_question_report, save_question_attempt, save_result
 from app.desktop.quiz_logic import QuizSession
 
 
 class QuizWindow(QWidget):
     """Herní okno s jednotlivými otázkami a vyhodnocením."""
 
-    def __init__(self, user, category_id, difficulty_id, questions):
+    def __init__(self, user, category_id, difficulty_id, questions, mode="normal"):
         super().__init__()
         self.setObjectName("RootPage")
         self.setWindowTitle("Quiz - hra")
@@ -31,8 +32,11 @@ class QuizWindow(QWidget):
         self.user_id = user["user_id"]
         self.category_id = category_id
         self.difficulty_id = difficulty_id
+        self.mode = mode if mode in {"normal", "training"} else "normal"
         self.session = QuizSession(questions)
         self.started_at = None
+        self.reported_question_ids = set()
+        self.attempt_save_failed = False
 
         self.timer = QTimer(self)
         self.timer.setInterval(1000)
@@ -45,6 +49,7 @@ class QuizWindow(QWidget):
 
         self._build_header_card()
         self._build_question_card()
+        self._build_report_row()
 
         self.feedback_lbl = QLabel("")
         self.feedback_lbl.setObjectName("Hint")
@@ -83,12 +88,18 @@ class QuizWindow(QWidget):
         self.score_lbl.setObjectName("MetaPill")
         self.score_lbl.setAlignment(Qt.AlignCenter)
 
+        mode_label = "Režim: Trénink chyb" if self.mode == "training" else "Režim: Normální kvíz"
+        self.mode_lbl = QLabel(mode_label)
+        self.mode_lbl.setObjectName("MetaPill")
+        self.mode_lbl.setAlignment(Qt.AlignCenter)
+
         self.time_lbl = QLabel("Čas: 00:00")
         self.time_lbl.setObjectName("MetaPill")
         self.time_lbl.setAlignment(Qt.AlignCenter)
 
         meta_row.addWidget(self.progress_lbl, 1)
         meta_row.addWidget(self.score_lbl, 1)
+        meta_row.addWidget(self.mode_lbl, 1)
         meta_row.addWidget(self.time_lbl, 1)
 
         header_layout.addLayout(meta_row)
@@ -108,6 +119,22 @@ class QuizWindow(QWidget):
 
         question_layout.addWidget(self.question_lbl)
         self.layout.addWidget(question_card)
+
+    def _build_report_row(self):
+        """Vytvoří řádek pod otázkou s tlačítkem nahlášení vpravo."""
+        report_row = QHBoxLayout()
+        report_row.setContentsMargins(0, 0, 0, 0)
+        report_row.addStretch(1)
+
+        self.report_btn = QPushButton("Nahlásit otázku")
+        self.report_btn.setObjectName("ReportButton")
+        self.report_btn.setFixedHeight(34)
+        self.report_btn.setMinimumWidth(142)
+        self.report_btn.clicked.connect(self.report_current_question)
+        self.report_btn.setCursor(Qt.PointingHandCursor)
+
+        report_row.addWidget(self.report_btn, 0, Qt.AlignRight)
+        self.layout.addLayout(report_row)
 
     def _build_answers_card(self):
         """Vytvoří kartu s odpověďmi A-D."""
@@ -166,7 +193,12 @@ class QuizWindow(QWidget):
 
     def choose(self, letter):
         """Zpracuje odpověď uživatele a posune se dál."""
+        current_question = self.session.current_question()
+        if current_question is None:
+            return
+
         result = self.session.answer(letter)
+        self._save_question_attempt(current_question, result)
 
         if result is True:
             self._set_feedback("Správná odpověď", "correct")
@@ -190,20 +222,28 @@ class QuizWindow(QWidget):
             elapsed = time.monotonic() - self.started_at
             duration_seconds = max(1, int(round(elapsed)))
 
-        save_result(
-            user_id=self.user_id,
-            category_id=self.category_id,
-            difficulty_id=self.difficulty_id,
-            score=score,
-            total_questions=total,
-            duration_seconds=duration_seconds,
-        )
+        saved_to_results = False
+        if self.mode == "normal":
+            save_result(
+                user_id=self.user_id,
+                category_id=self.category_id,
+                difficulty_id=self.difficulty_id,
+                score=score,
+                total_questions=total,
+                duration_seconds=duration_seconds,
+            )
+            saved_to_results = True
 
         time_text = self._format_duration(duration_seconds) if duration_seconds is not None else "-"
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Information)
         box.setWindowTitle("Konec kvízu")
-        box.setText(f"Výsledek: {score}/{total}\nČas: {time_text}\nUloženo do databáze.")
+        save_note = (
+            "Uloženo do databáze."
+            if saved_to_results
+            else "Tréninkový režim: výsledek se neukládá do leaderboardu."
+        )
+        box.setText(f"Výsledek: {score}/{total}\nČas: {time_text}\n{save_note}")
         box.setInformativeText("Chceš spustit nový test, nebo aplikaci zavřít?")
 
         play_again_btn = box.addButton("Nový test", QMessageBox.AcceptRole)
@@ -222,6 +262,61 @@ class QuizWindow(QWidget):
 
         # Fallback - pokud uživatel dialog zavře křížkem, appku ukončíme.
         QApplication.instance().quit()
+
+    def report_current_question(self):
+        """Umožní hráči nahlásit problém s aktuální otázkou."""
+        question = self.session.current_question()
+        if question is None:
+            QMessageBox.information(self, "Nahlášení otázky", "Aktuálně není otevřená žádná otázka.")
+            return
+
+        question_id = question["question_id"]
+        if question_id in self.reported_question_ids:
+            QMessageBox.information(self, "Nahlášení otázky", "Tuto otázku už jsi v tomto kvízu nahlásil.")
+            return
+
+        reasons = [
+            "Špatná správná odpověď",
+            "Nejasné zadání",
+            "Překlep nebo gramatika",
+            "Duplicitní otázka",
+            "Jiný problém",
+        ]
+        reason, ok_reason = QInputDialog.getItem(
+            self,
+            "Nahlásit otázku",
+            "Důvod hlášení:",
+            reasons,
+            0,
+            False,
+        )
+        if not ok_reason:
+            return
+
+        note, ok_note = QInputDialog.getMultiLineText(
+            self,
+            "Nahlásit otázku",
+            "Detail (volitelné):",
+            "",
+        )
+        if not ok_note:
+            return
+
+        try:
+            create_question_report(
+                question_id=question_id,
+                user_id=self.user_id,
+                reason=reason,
+                note=note,
+            )
+            self.reported_question_ids.add(question_id)
+            QMessageBox.information(
+                self,
+                "Nahlášení otázky",
+                "Děkujeme, hlášení bylo odesláno adminovi ke kontrole.",
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Nahlášení otázky", f"Hlášení se nepodařilo uložit: {exc}")
 
     def _tick_timer(self):
         """Aktualizuje zobrazení průběžného času v horní kartě."""
@@ -276,6 +371,28 @@ class QuizWindow(QWidget):
 
         self.start_window = StartWindow(user=self.user)
         self.start_window.show()
+
+    def _save_question_attempt(self, question: dict, answer_result):
+        """Uloží pokus na otázce. Při chybě neblokuje průběh kvízu."""
+        if answer_result not in (True, False):
+            return
+        try:
+            save_question_attempt(
+                user_id=self.user_id,
+                question_id=question["question_id"],
+                category_id=self.category_id,
+                difficulty_id=self.difficulty_id,
+                is_correct=answer_result,
+                mode=self.mode,
+            )
+        except Exception as exc:
+            if not self.attempt_save_failed:
+                QMessageBox.warning(
+                    self,
+                    "Upozornění",
+                    f"Nepodařilo se uložit odpověď do historie tréninku: {exc}",
+                )
+                self.attempt_save_failed = True
 
     @staticmethod
     def _format_duration(seconds):

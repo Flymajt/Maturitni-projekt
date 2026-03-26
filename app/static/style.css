@@ -550,6 +550,31 @@ tbody tr:hover td {
   background: rgba(122, 178, 178, 0.7);
 }
 
+.report-status {
+  min-width: 96px;
+  justify-content: center;
+}
+
+.report-new {
+  background: rgba(9, 99, 126, 0.2);
+}
+
+.report-reviewed {
+  background: rgba(122, 178, 178, 0.45);
+}
+
+.report-resolved {
+  background: rgba(8, 131, 149, 0.22);
+}
+
+.report-rejected {
+  background: rgba(9, 99, 126, 0.14);
+}
+
+.report-action-form {
+  gap: 8px;
+}
+
 .table-actions {
   display: flex;
   justify-content: flex-start;

@@ -1,10 +1,10 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block content %}
 <section class="page-head split">
   <div>
     <h1>Administrace</h1>
-    <p>Správa otázek, kategorií, výsledků a uživatelů.</p>
+    <p>Správa otázek, kategorií, výsledků, uživatelů a hlášení.</p>
   </div>
 </section>
 
@@ -27,6 +27,11 @@
   <a class="panel admin-card" href="{{ url_for('admin_users') }}">
     <h2>Registrovaní uživatelé</h2>
     <p>Přehled všech účtů + spodní sekce pro správu: vymazání, přejmenování a změna hesla uživatele.</p>
+  </a>
+
+  <a class="panel admin-card" href="{{ url_for('admin_reports') }}">
+    <h2>Hlášení otázek</h2>
+    <p>Kontrola nahlášených otázek od hráčů a změna statusu řešení.</p>
   </a>
 </section>
 {% endblock %}

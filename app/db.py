@@ -9,6 +9,8 @@ from flask import current_app
 
 _duration_column_checked = False
 _profile_title_column_checked = False
+_question_attempts_table_checked = False
+_question_reports_table_checked = False
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +101,85 @@ def ensure_users_profile_title_column():
             cur.execute("ALTER TABLE users ADD COLUMN profile_title VARCHAR(50) NULL AFTER role;")
             conn.commit()
         _profile_title_column_checked = True
+    finally:
+        cur.close()
+        conn.close()
+
+
+def ensure_question_attempts_table():
+    """Zajistí existenci tabulky question_attempts."""
+    global _question_attempts_table_checked
+    if _question_attempts_table_checked:
+        return
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SHOW TABLES LIKE 'question_attempts';")
+        exists = cur.fetchone()
+        if not exists:
+            cur.execute(
+                """
+                CREATE TABLE question_attempts (
+                    attempt_id INT PRIMARY KEY AUTO_INCREMENT,
+                    user_id INT NOT NULL,
+                    question_id INT NOT NULL,
+                    category_id INT NOT NULL,
+                    difficulty_id INT NOT NULL,
+                    is_correct TINYINT(1) NOT NULL,
+                    mode VARCHAR(20) NOT NULL DEFAULT 'normal',
+                    answered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_attempts_user_question (user_id, question_id),
+                    INDEX idx_attempts_user_time (user_id, answered_at),
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                    FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE,
+                    FOREIGN KEY (category_id) REFERENCES categories(category_id),
+                    FOREIGN KEY (difficulty_id) REFERENCES difficulties(difficulty_id)
+                );
+                """
+            )
+            conn.commit()
+        _question_attempts_table_checked = True
+    finally:
+        cur.close()
+        conn.close()
+
+
+def ensure_question_reports_table():
+    """Zajistí existenci tabulky question_reports."""
+    global _question_reports_table_checked
+    if _question_reports_table_checked:
+        return
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SHOW TABLES LIKE 'question_reports';")
+        exists = cur.fetchone()
+        if not exists:
+            cur.execute(
+                """
+                CREATE TABLE question_reports (
+                    report_id INT PRIMARY KEY AUTO_INCREMENT,
+                    question_id INT NOT NULL,
+                    user_id INT NOT NULL,
+                    reason VARCHAR(60) NOT NULL,
+                    note VARCHAR(500),
+                    status VARCHAR(20) NOT NULL DEFAULT 'new',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    resolved_by INT NULL,
+                    INDEX idx_reports_status (status),
+                    INDEX idx_reports_question (question_id),
+                    INDEX idx_reports_user_time (user_id, created_at),
+                    FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE,
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                    FOREIGN KEY (resolved_by) REFERENCES users(user_id) ON DELETE SET NULL
+                );
+                """
+            )
+            conn.commit()
+        _question_reports_table_checked = True
     finally:
         cur.close()
         conn.close()
@@ -295,6 +376,147 @@ def update_user_profile_title(user_id: int, profile_title: str | None):
 
 
 # ---------------------------------------------------------------------------
+# Moje historie (user)
+# ---------------------------------------------------------------------------
+
+def _build_user_history_where(user_id: int, filters: dict | None = None):
+    """Sestaví WHERE část pro historii konkrétního uživatele."""
+    data = filters or {}
+    conditions = ["r.user_id = %s"]
+    params = [user_id]
+
+    if data.get("category_id"):
+        conditions.append("r.category_id = %s")
+        params.append(data["category_id"])
+    if data.get("difficulty_id"):
+        conditions.append("r.difficulty_id = %s")
+        params.append(data["difficulty_id"])
+    if data.get("date_from"):
+        conditions.append("DATE(r.played_at) >= %s")
+        params.append(data["date_from"])
+    if data.get("date_to"):
+        conditions.append("DATE(r.played_at) <= %s")
+        params.append(data["date_to"])
+
+    return "WHERE " + " AND ".join(conditions), params
+
+
+def get_user_history_rows(
+    user_id: int,
+    filters: dict | None = None,
+    order: str = "newest",
+    limit: int | None = 15,
+    offset: int = 0,
+):
+    """Vrátí historii výsledků přihlášeného uživatele."""
+    ensure_results_duration_column()
+    where_sql, params = _build_user_history_where(user_id, filters)
+    safe_order = {
+        "newest": "r.played_at DESC",
+        "oldest": "r.played_at ASC",
+        "best": "r.score DESC, r.played_at DESC",
+        "worst": "r.score ASC, r.played_at DESC",
+        "speedrun": (
+            "r.category_id ASC, "
+            "r.difficulty_id ASC, "
+            "ROUND((r.score / NULLIF(r.total_questions, 0)) * 100, 2) DESC, "
+            "r.score DESC, "
+            "r.duration_seconds IS NULL ASC, "
+            "r.duration_seconds ASC, "
+            "r.played_at ASC"
+        ),
+    }.get(order, "r.played_at DESC")
+
+    sql = f"""
+    SELECT
+        r.result_id,
+        c.name AS category,
+        d.name AS difficulty,
+        r.score,
+        r.total_questions,
+        r.duration_seconds,
+        r.played_at,
+        ROUND((r.score / NULLIF(r.total_questions, 0)) * 100, 2) AS success_pct
+    FROM results r
+    JOIN categories c ON c.category_id = r.category_id
+    JOIN difficulties d ON d.difficulty_id = r.difficulty_id
+    {where_sql}
+    ORDER BY {safe_order}
+    """
+
+    if limit is not None:
+        sql += " LIMIT %s"
+        params.append(limit)
+        if offset and offset > 0:
+            sql += " OFFSET %s"
+            params.append(offset)
+
+    sql += ";"
+    return fetch_all(sql, tuple(params))
+
+
+def count_user_history_rows(user_id: int, filters: dict | None = None):
+    """Vrátí počet řádků v historii uživatele podle filtru."""
+    where_sql, params = _build_user_history_where(user_id, filters)
+    sql = f"""
+    SELECT COUNT(*) AS total
+    FROM results r
+    {where_sql};
+    """
+    row = fetch_one(sql, tuple(params))
+    return int((row or {}).get("total") or 0)
+
+
+def get_user_history_summary(user_id: int, filters: dict | None = None):
+    """Vrátí souhrnné statistiky pro stránku Moje historie."""
+    where_sql, params = _build_user_history_where(user_id, filters)
+    sql = f"""
+    SELECT
+        COUNT(*) AS attempts,
+        COALESCE(SUM(r.score), 0) AS total_correct_answers,
+        COALESCE(SUM(r.total_questions), 0) AS total_answered_questions,
+        COALESCE(ROUND(AVG((r.score / NULLIF(r.total_questions, 0)) * 100), 2), 0) AS avg_success_pct,
+        COALESCE(MAX((r.score / NULLIF(r.total_questions, 0)) * 100), 0) AS best_success_pct
+    FROM results r
+    {where_sql};
+    """
+    row = fetch_one(sql, tuple(params)) or {}
+    attempts = int(row.get("attempts") or 0)
+    total_correct = int(row.get("total_correct_answers") or 0)
+    total_questions = int(row.get("total_answered_questions") or 0)
+    overall_success_pct = 0.0
+    if total_questions > 0:
+        overall_success_pct = round((total_correct / total_questions) * 100, 2)
+
+    return {
+        "attempts": attempts,
+        "avg_success_pct": float(row.get("avg_success_pct") or 0.0),
+        "best_success_pct": round(float(row.get("best_success_pct") or 0.0), 2),
+        "overall_success_pct": overall_success_pct,
+        "total_correct_answers": total_correct,
+        "total_answered_questions": total_questions,
+    }
+
+
+def get_user_history_trend(user_id: int, limit: int = 12, filters: dict | None = None):
+    """Vrátí poslední výsledky hráče pro trend graf na stránce historie."""
+    where_sql, params = _build_user_history_where(user_id, filters)
+    params.append(limit)
+    sql = f"""
+    SELECT
+        r.played_at,
+        ROUND((r.score / NULLIF(r.total_questions, 0)) * 100, 2) AS success_pct
+    FROM results r
+    {where_sql}
+    ORDER BY r.played_at DESC
+    LIMIT %s;
+    """
+    rows = fetch_all(sql, tuple(params))
+    rows.reverse()
+    return rows
+
+
+# ---------------------------------------------------------------------------
 # Otázky - CRUD pro admin web
 # ---------------------------------------------------------------------------
 
@@ -328,6 +550,7 @@ def list_questions(
     offset: int = 0,
 ):
     """Vrátí seznam otázek s napojenou kategorií a obtížností."""
+    ensure_question_reports_table()
     where_sql, params = _build_questions_where(search, category_id, difficulty_id)
 
     sql = f"""
@@ -343,11 +566,17 @@ def list_questions(
         d.name AS difficulty,
         qc.category_id,
         c.name AS category,
+        COALESCE(qr.report_count, 0) AS report_count,
         q.created_at
     FROM questions q
     JOIN difficulties d ON d.difficulty_id = q.difficulty_id
     LEFT JOIN questions_categories qc ON qc.question_id = q.question_id
     LEFT JOIN categories c ON c.category_id = qc.category_id
+    LEFT JOIN (
+        SELECT question_id, COUNT(*) AS report_count
+        FROM question_reports
+        GROUP BY question_id
+    ) qr ON qr.question_id = q.question_id
     {where_sql}
     ORDER BY q.question_id DESC
     """
@@ -733,6 +962,134 @@ def get_top_users(limit: int = 10):
     LIMIT %s;
     """
     return fetch_all(sql, (limit,))
+
+
+# ---------------------------------------------------------------------------
+# Hlášení otázek
+# ---------------------------------------------------------------------------
+
+_ALLOWED_REPORT_STATUSES = {"new", "reviewed", "resolved", "rejected"}
+
+
+def _normalize_report_status(status: str | None):
+    """Normalizuje status hlášení na podporované hodnoty."""
+    value = (status or "").strip().lower()
+    if not value:
+        return None
+    if value not in _ALLOWED_REPORT_STATUSES:
+        return None
+    return value
+
+
+def create_question_report(question_id: int, user_id: int, reason: str, note: str = ""):
+    """Vytvoří nové hlášení otázky od uživatele."""
+    ensure_question_reports_table()
+    sql = """
+    INSERT INTO question_reports (question_id, user_id, reason, note)
+    VALUES (%s, %s, %s, %s);
+    """
+    clean_reason = (reason or "").strip()[:60]
+    clean_note = (note or "").strip()[:500]
+    return execute(sql, (question_id, user_id, clean_reason, clean_note or None))
+
+
+def count_question_reports(status: str | None = None):
+    """Vrátí počet hlášení podle zvoleného statusu."""
+    ensure_question_reports_table()
+    normalized = _normalize_report_status(status)
+    if normalized:
+        row = fetch_one(
+            "SELECT COUNT(*) AS total FROM question_reports WHERE status = %s;",
+            (normalized,),
+        )
+    else:
+        row = fetch_one("SELECT COUNT(*) AS total FROM question_reports;")
+    return int((row or {}).get("total") or 0)
+
+
+def get_question_reports(status: str | None = None, limit: int | None = 15, offset: int = 0):
+    """Vrátí seznam hlášení otázek pro admin přehled."""
+    ensure_question_reports_table()
+    normalized = _normalize_report_status(status)
+    params = []
+    where_sql = ""
+    if normalized:
+        where_sql = "WHERE qr.status = %s"
+        params.append(normalized)
+
+    sql = f"""
+    SELECT
+        qr.report_id,
+        qr.question_id,
+        q.question_text,
+        qr.user_id,
+        reporter.username AS reporter_username,
+        qr.reason,
+        qr.note,
+        qr.status,
+        qr.created_at,
+        qr.updated_at,
+        qr.resolved_by,
+        resolver.username AS resolved_by_username
+    FROM question_reports qr
+    JOIN questions q ON q.question_id = qr.question_id
+    JOIN users reporter ON reporter.user_id = qr.user_id
+    LEFT JOIN users resolver ON resolver.user_id = qr.resolved_by
+    {where_sql}
+    ORDER BY
+        CASE qr.status
+            WHEN 'new' THEN 0
+            WHEN 'reviewed' THEN 1
+            WHEN 'resolved' THEN 2
+            WHEN 'rejected' THEN 3
+            ELSE 4
+        END,
+        qr.created_at DESC
+    """
+
+    if limit is not None:
+        sql += " LIMIT %s"
+        params.append(limit)
+        if offset and offset > 0:
+            sql += " OFFSET %s"
+            params.append(offset)
+
+    sql += ";"
+    return fetch_all(sql, tuple(params))
+
+
+def update_question_report_status(report_id: int, new_status: str, resolved_by: int | None):
+    """Aktualizuje status hlášení otázky a volitelně uloží admina, který změnu provedl."""
+    ensure_question_reports_table()
+    normalized = _normalize_report_status(new_status)
+    if not normalized:
+        raise ValueError("Neplatný status hlášení.")
+
+    resolver_id = resolved_by if normalized in {"reviewed", "resolved", "rejected"} else None
+    sql = """
+    UPDATE question_reports
+    SET status = %s,
+        resolved_by = %s
+    WHERE report_id = %s;
+    """
+    return execute(sql, (normalized, resolver_id, report_id))
+
+
+def get_question_report_counts_by_question_ids(question_ids: list[int]):
+    """Vrátí mapu {question_id: počet_hlášení} pro zobrazení ve správě otázek."""
+    ensure_question_reports_table()
+    if not question_ids:
+        return {}
+
+    placeholders = ", ".join(["%s"] * len(question_ids))
+    sql = f"""
+    SELECT question_id, COUNT(*) AS report_count
+    FROM question_reports
+    WHERE question_id IN ({placeholders})
+    GROUP BY question_id;
+    """
+    rows = fetch_all(sql, tuple(question_ids))
+    return {int(row["question_id"]): int(row["report_count"]) for row in rows}
 
 
 # ---------------------------------------------------------------------------

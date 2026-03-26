@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block content %}
 <section class="page-head split">
@@ -55,6 +55,7 @@
           <th>Kategorie</th>
           <th>Obtížnost</th>
           <th>Správně</th>
+          <th>Nahlášení</th>
           <th>Akce</th>
         </tr>
       </thead>
@@ -66,6 +67,7 @@
             <td>{{ q.category or '-' }}</td>
             <td>{{ q.difficulty }}</td>
             <td><span class="badge">{{ q.correct_answer }}</span></td>
+            <td>{{ q.report_count }}</td>
             <td class="actions-cell">
               <a class="btn btn-secondary btn-sm" href="{{ url_for('admin_question_edit', question_id=q.question_id) }}">Upravit</a>
               <form method="post" action="{{ url_for('admin_question_delete', question_id=q.question_id) }}" onsubmit="return confirm('Opravdu chceš smazat tuto otázku?');">
@@ -75,7 +77,7 @@
           </tr>
         {% else %}
           <tr>
-            <td colspan="6" class="muted">Žádné otázky neodpovídají zadanému filtru.</td>
+            <td colspan="7" class="muted">Žádné otázky neodpovídají zadanému filtru.</td>
           </tr>
         {% endfor %}
       </tbody>
