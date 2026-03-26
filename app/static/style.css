@@ -119,6 +119,13 @@ body {
   font-size: 0.92rem;
   white-space: nowrap;
   border: 1px solid rgba(8, 131, 149, 0.35);
+  text-decoration: none;
+  transition: filter 0.18s ease, transform 0.18s ease;
+}
+
+.user-pill:hover {
+  filter: brightness(0.96);
+  transform: translateY(-1px);
 }
 
 .content {
@@ -336,6 +343,63 @@ textarea:focus {
   border-color: var(--secondary);
 }
 
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  padding-right: 44px;
+}
+
+.password-toggle-icon {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.password-toggle-icon:hover {
+  background: rgba(8, 131, 149, 0.12);
+  color: var(--text);
+}
+
+.password-toggle-icon:focus-visible {
+  outline: 2px solid rgba(8, 131, 149, 0.35);
+}
+
+.password-toggle-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.password-toggle-icon .icon-eye {
+  display: none;
+}
+
+.password-toggle-icon.is-visible .icon-eye {
+  display: block;
+}
+
+.password-toggle-icon.is-visible .icon-eye-off {
+  display: none;
+}
+
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -491,11 +555,51 @@ tbody tr:hover td {
   justify-content: flex-start;
 }
 
+.pagination-wrap {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination-info {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.pagination-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pagination-current {
+  min-width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: var(--cream);
+  background: var(--primary);
+}
+
 .inline-form {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+}
+
+.import-note {
+  flex-basis: 100%;
+  font-size: 0.85rem;
+  margin-top: -2px;
 }
 
 .import-panel {
@@ -526,6 +630,73 @@ tbody tr:hover td {
   margin-bottom: 16px;
 }
 
+.profile-layout {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.profile-main {
+  gap: 18px;
+}
+
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.profile-metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.profile-metric {
+  background: rgba(235, 244, 246, 0.68);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-metric strong {
+  font-size: 1.05rem;
+}
+
+.xp-block {
+  display: grid;
+  gap: 8px;
+}
+
+.xp-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.xp-progress {
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(8, 131, 149, 0.2);
+  border: 1px solid rgba(8, 131, 149, 0.35);
+  overflow: hidden;
+}
+
+.xp-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #088395, #09637e);
+  transition: width 0.25s ease;
+}
+
 .chart-panel canvas {
   width: 100%;
   height: 300px !important;
@@ -553,7 +724,8 @@ code {
   .hero,
   .section-grid,
   .stats-grid,
-  .admin-cards {
+  .admin-cards,
+  .profile-layout {
     grid-template-columns: 1fr;
   }
 
@@ -576,6 +748,10 @@ code {
   }
 
   .filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-metric-grid {
     grid-template-columns: 1fr;
   }
 

@@ -1,4 +1,5 @@
 ﻿import csv
+import re
 from datetime import date
 from functools import wraps
 from io import StringIO
@@ -20,6 +21,8 @@ from app.db import (
     create_category,
     create_user,
     create_questions_bulk,
+    count_questions,
+    count_filtered_results,
     delete_category,
     delete_user_by_id,
     delete_question,
@@ -37,16 +40,42 @@ from app.db import (
     get_users_simple,
     import_results_csv,
     list_questions,
+    get_user_profile_summary,
+    update_category_description,
+    update_user_profile_title,
     update_user_password,
     update_user_username,
     update_question,
     verify_login,
 )
 
+LEVEL_TITLES = [
+    (25, "Legenda"),
+    (20, "Mistr"),
+    (15, "Expert"),
+    (10, "Znalec"),
+    (5, "Hráč"),
+    (1, "Začátečník"),
+]
+
 
 # ---------------------------------------------------------------------------
 # Auth guard helpery
 # ---------------------------------------------------------------------------
+
+
+def _level_title_for(level: int) -> str:
+    """Vrátí název levelu podle definovaných milníků."""
+    for min_level, title in LEVEL_TITLES:
+        if level >= min_level:
+            return title
+    return "Začátečník"
+
+
+def _available_titles_for(level: int):
+    """Vrátí seznam title, které si hráč může zvolit pro daný level."""
+    unlocked = [title for min_level, title in LEVEL_TITLES if level >= min_level]
+    return list(reversed(unlocked))
 
 def _to_int(value):
     """Bezpečný převod query/form hodnoty na int."""
@@ -84,6 +113,33 @@ def _filters_query_dict(filters, order):
     for key, value in filters.items():
         if value not in (None, ""):
             params[key] = value
+    return params
+
+
+def _filters_query_with_page(filters, order, page: int):
+    """Převede filtry do URL params včetně stránkování."""
+    params = _filters_query_dict(filters, order)
+    if page > 1:
+        params["page"] = page
+    return params
+
+
+def _admin_questions_query_dict(
+    search: str,
+    category_id: int | None,
+    difficulty_id: int | None,
+    page: int,
+):
+    """Převede filtry správy otázek do URL parametrů včetně stránky."""
+    params = {}
+    if search:
+        params["q"] = search
+    if category_id:
+        params["category_id"] = category_id
+    if difficulty_id:
+        params["difficulty_id"] = difficulty_id
+    if page > 1:
+        params["page"] = page
     return params
 
 
@@ -221,6 +277,10 @@ def register():
             flash("Heslo musí mít aspoň 4 znaky.", "danger")
             return render_template("register.html")
 
+        if not re.search(r"[A-Z]", password) or not re.search(r"\d", password):
+            flash("Heslo musí obsahovat aspoň jedno velké písmeno a jedno číslo.", "danger")
+            return render_template("register.html")
+
         if password != password2:
             flash("Hesla se neshodují.", "danger")
             return render_template("register.html")
@@ -246,11 +306,53 @@ def logout():
     return redirect(url_for("home"))
 
 
+@app.route("/profile", methods=["GET", "POST"])
+@login_required
+def profile():
+    """Profil přihlášeného uživatele včetně XP, levelu a title."""
+    user_id = session.get("user_id")
+    profile_data = get_user_profile_summary(user_id)
+    if not profile_data:
+        flash("Profil se nepodařilo načíst.", "danger")
+        return redirect(url_for("home"))
+
+    available_titles = _available_titles_for(profile_data["level"])
+    selected_title = profile_data.get("profile_title")
+    if selected_title and selected_title not in available_titles:
+        selected_title = None
+
+    if request.method == "POST":
+        new_title = (request.form.get("profile_title") or "").strip()
+        if new_title and new_title not in available_titles:
+            flash("Vybraný title není dostupný pro tvůj aktuální level.", "danger")
+        else:
+            update_user_profile_title(user_id, new_title or None)
+            flash("Profilový title byl uložen.", "success")
+            return redirect(url_for("profile"))
+
+    auto_title = _level_title_for(profile_data["level"])
+    current_title = selected_title or auto_title
+
+    return render_template(
+        "profile.html",
+        profile=profile_data,
+        auto_title=auto_title,
+        current_title=current_title,
+        available_titles=available_titles,
+        selected_title=selected_title,
+    )
+
+
 @app.route("/leaderboard")
 def leaderboard():
     """Veřejný leaderboard s filtrováním, řazením a exportem do CSV."""
+    per_page = 15
     filters = _get_filters(request.args)
     order = request.args.get("order", "score_desc")
+    page = _to_int(request.args.get("page")) or 1
+    if page < 1:
+        page = 1
+
     raw_date_from = filters.get("date_from", "")
     raw_date_to = filters.get("date_to", "")
     filters["date_from"] = _to_iso_date_or_empty(raw_date_from)
@@ -264,7 +366,25 @@ def leaderboard():
         filters["date_to"] = filters["date_from"]
         flash("Datum do nemůže být menší než datum od. Automaticky jsem ho upravil.", "warning")
 
-    rows = get_filtered_results(filters=filters, order=order, limit=250)
+    total_rows = count_filtered_results(filters=filters)
+    total_pages = max(1, (total_rows + per_page - 1) // per_page)
+    if page > total_pages:
+        page = total_pages
+
+    rows = get_filtered_results(
+        filters=filters,
+        order=order,
+        limit=per_page,
+        offset=(page - 1) * per_page,
+    )
+
+    start_page = max(1, page - 2)
+    end_page = min(total_pages, page + 2)
+    page_items = [
+        {"number": p, "params": _filters_query_with_page(filters, order, p)}
+        for p in range(start_page, end_page + 1)
+    ]
+
     options = {
         "categories": get_categories(),
         "difficulties": get_difficulties(),
@@ -277,6 +397,17 @@ def leaderboard():
         options=options,
         order=order,
         export_params=_filters_query_dict(filters, order),
+        pagination={
+            "page": page,
+            "per_page": per_page,
+            "total_rows": total_rows,
+            "total_pages": total_pages,
+            "has_prev": page > 1,
+            "has_next": page < total_pages,
+            "prev_params": _filters_query_with_page(filters, order, page - 1),
+            "next_params": _filters_query_with_page(filters, order, page + 1),
+            "page_items": page_items,
+        },
     )
 
 
@@ -349,11 +480,36 @@ def admin_dashboard():
 @admin_required
 def admin_questions():
     """Seznam otázek s filtrováním a akcemi edit/delete."""
+    per_page = 15
     search = (request.args.get("q") or "").strip()
     category_id = _to_int(request.args.get("category_id"))
     difficulty_id = _to_int(request.args.get("difficulty_id"))
+    page = _to_int(request.args.get("page")) or 1
+    if page < 1:
+        page = 1
 
-    questions = list_questions(search=search, category_id=category_id, difficulty_id=difficulty_id)
+    total_rows = count_questions(search=search, category_id=category_id, difficulty_id=difficulty_id)
+    total_pages = max(1, (total_rows + per_page - 1) // per_page)
+    if page > total_pages:
+        page = total_pages
+
+    questions = list_questions(
+        search=search,
+        category_id=category_id,
+        difficulty_id=difficulty_id,
+        limit=per_page,
+        offset=(page - 1) * per_page,
+    )
+
+    start_page = max(1, page - 2)
+    end_page = min(total_pages, page + 2)
+    page_items = [
+        {
+            "number": p,
+            "params": _admin_questions_query_dict(search, category_id, difficulty_id, p),
+        }
+        for p in range(start_page, end_page + 1)
+    ]
 
     return render_template(
         "admin/questions.html",
@@ -363,6 +519,16 @@ def admin_questions():
         search=search,
         category_id=category_id,
         difficulty_id=difficulty_id,
+        pagination={
+            "page": page,
+            "total_rows": total_rows,
+            "total_pages": total_pages,
+            "has_prev": page > 1,
+            "has_next": page < total_pages,
+            "prev_params": _admin_questions_query_dict(search, category_id, difficulty_id, page - 1),
+            "next_params": _admin_questions_query_dict(search, category_id, difficulty_id, page + 1),
+            "page_items": page_items,
+        },
     )
 
 
@@ -535,6 +701,21 @@ def admin_categories():
                     )
                 except Exception as exc:
                     flash(f"Nepodařilo se smazat kategorii: {exc}", "danger")
+        elif action == "update_description":
+            category_id = _to_int(request.form.get("category_id"))
+            description = (request.form.get("description") or "").strip()
+            if not category_id:
+                flash("Neplatná kategorie pro úpravu popisu.", "danger")
+            else:
+                try:
+                    changed = update_category_description(category_id, description)
+                    if changed:
+                        flash("Popis kategorie byl úspěšně upraven.", "success")
+                    else:
+                        flash("Kategorie nebyla nalezena nebo popis zůstal stejný.", "warning")
+                    return redirect(url_for("admin_categories"))
+                except Exception as exc:
+                    flash(f"Nepodařilo se upravit popis kategorie: {exc}", "danger")
         else:
             flash("Neplatná akce ve správě kategorií.", "danger")
 
@@ -599,7 +780,7 @@ def admin_question_delete(question_id: int):
 def admin_results():
     """Admin správa výsledků: filtry, bulk delete, import/export."""
     filters = _get_filters(request.args)
-    order = request.args.get("order", "newest")
+    order = request.args.get("order", "id_desc")
 
     raw_date_from = filters.get("date_from", "")
     raw_date_to = filters.get("date_to", "")

@@ -56,6 +56,9 @@
     <div>
       <label for="order">Řazení</label>
       <select id="order" name="order">
+        <option value="id_desc" {% if order == 'id_desc' %}selected{% endif %}>ID: nejnovější vložení</option>
+        <option value="id_asc" {% if order == 'id_asc' %}selected{% endif %}>ID: nejstarší vložení</option>
+        <option value="speedrun" {% if order == 'speedrun' %}selected{% endif %}>Nejlepší rychlost</option>
         <option value="newest" {% if order == 'newest' %}selected{% endif %}>Nejnovější</option>
         <option value="oldest" {% if order == 'oldest' %}selected{% endif %}>Nejstarší</option>
         <option value="score_desc" {% if order == 'score_desc' %}selected{% endif %}>Skóre: nejvyšší</option>
@@ -74,6 +77,7 @@
   <form method="post" action="{{ url_for('results_import') }}" enctype="multipart/form-data" class="inline-form">
     <label for="csv_file">Import výsledků z CSV:</label>
     <input id="csv_file" name="csv_file" type="file" accept=".csv" required>
+    <div class="import-note muted">Nutno uložit v UTF-8</div>
     <button class="btn btn-secondary" type="submit">Importovat</button>
   </form>
 </section>
@@ -95,6 +99,7 @@
             <th>Obtížnost</th>
             <th>Skóre</th>
             <th>Úspěšnost</th>
+            <th>Speedrun</th>
             <th>Datum</th>
           </tr>
         </thead>
@@ -108,11 +113,12 @@
               <td>{{ r.difficulty }}</td>
               <td>{{ r.score }}/{{ r.total_questions }}</td>
               <td>{{ r.success_pct }} %</td>
+              <td>{{ r.duration_seconds | format_duration }}</td>
               <td>{{ r.played_at }}</td>
             </tr>
           {% else %}
             <tr>
-              <td colspan="8" class="muted">Žádné výsledky neodpovídají filtru.</td>
+              <td colspan="9" class="muted">Žádné výsledky neodpovídají filtru.</td>
             </tr>
           {% endfor %}
         </tbody>

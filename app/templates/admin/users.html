@@ -62,10 +62,38 @@
 
     <div id="passwordFields" style="display:none;">
       <label for="new_password">Nové heslo</label>
-      <input id="new_password" name="new_password" type="password" minlength="4">
+      <div class="password-field">
+        <input id="new_password" name="new_password" type="password" minlength="4">
+        <button class="password-toggle-icon" type="button" data-toggle-password="new_password" aria-label="Zobrazit heslo">
+          <svg class="icon-eye-off" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M10.58 10.58a2 2 0 0 0 2.83 2.83"></path>
+            <path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-2.17 3.19"></path>
+            <path d="M6.71 6.71A12.94 12.94 0 0 0 2 12s3 7 10 7a9.77 9.77 0 0 0 5.29-1.47"></path>
+            <line x1="2" y1="2" x2="22" y2="22"></line>
+          </svg>
+          <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </button>
+      </div>
 
       <label for="new_password2">Nové heslo znovu</label>
-      <input id="new_password2" name="new_password2" type="password" minlength="4">
+      <div class="password-field">
+        <input id="new_password2" name="new_password2" type="password" minlength="4">
+        <button class="password-toggle-icon" type="button" data-toggle-password="new_password2" aria-label="Zobrazit heslo">
+          <svg class="icon-eye-off" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M10.58 10.58a2 2 0 0 0 2.83 2.83"></path>
+            <path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-2.17 3.19"></path>
+            <path d="M6.71 6.71A12.94 12.94 0 0 0 2 12s3 7 10 7a9.77 9.77 0 0 0 5.29-1.47"></path>
+            <line x1="2" y1="2" x2="22" y2="22"></line>
+          </svg>
+          <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <div class="form-actions">
@@ -96,6 +124,17 @@
         event.preventDefault();
       }
     }
+  });
+
+  document.querySelectorAll('[data-toggle-password]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const input = document.getElementById(btn.dataset.togglePassword);
+      if (!input) return;
+      const isHidden = input.type === 'password';
+      input.type = isHidden ? 'text' : 'password';
+      btn.classList.toggle('is-visible', isHidden);
+      btn.setAttribute('aria-label', isHidden ? 'Skrýt heslo' : 'Zobrazit heslo');
+    });
   });
 </script>
 {% endblock %}

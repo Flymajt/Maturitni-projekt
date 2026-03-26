@@ -8,6 +8,7 @@ import mysql.connector
 from flask import current_app
 
 _duration_column_checked = False
+_profile_title_column_checked = False
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +79,26 @@ def ensure_results_duration_column():
             cur.execute("ALTER TABLE results ADD COLUMN duration_seconds INT NULL AFTER total_questions;")
             conn.commit()
         _duration_column_checked = True
+    finally:
+        cur.close()
+        conn.close()
+
+
+def ensure_users_profile_title_column():
+    """Zajistí existenci sloupce profile_title v tabulce users."""
+    global _profile_title_column_checked
+    if _profile_title_column_checked:
+        return
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SHOW COLUMNS FROM users LIKE 'profile_title';")
+        exists = cur.fetchone()
+        if not exists:
+            cur.execute("ALTER TABLE users ADD COLUMN profile_title VARCHAR(50) NULL AFTER role;")
+            conn.commit()
+        _profile_title_column_checked = True
     finally:
         cur.close()
         conn.close()
@@ -173,6 +194,12 @@ def delete_category(category_id: int):
     return execute(sql, (category_id,))
 
 
+def update_category_description(category_id: int, description: str = ""):
+    """Upraví popis kategorie podle ID."""
+    sql = "UPDATE categories SET description = %s WHERE category_id = %s;"
+    return execute(sql, (description or None, category_id))
+
+
 def get_difficulties():
     """Vrátí seznam obtížností seřazený podle ID."""
     return fetch_all("SELECT difficulty_id, name FROM difficulties ORDER BY difficulty_id;")
@@ -203,12 +230,76 @@ def delete_user_by_id(user_id: int):
     return execute(sql, (user_id,))
 
 
+def get_user_profile_summary(user_id: int):
+    """Vrátí agregované statistiky profilu včetně XP a levelu."""
+    ensure_users_profile_title_column()
+
+    user_sql = "SELECT user_id, username, profile_title FROM users WHERE user_id = %s;"
+    user = fetch_one(user_sql, (user_id,))
+    if not user:
+        return None
+
+    stats_sql = """
+    SELECT
+        COUNT(*) AS quizzes_played,
+        COALESCE(SUM(r.score), 0) AS total_correct_answers,
+        COALESCE(SUM(r.total_questions), 0) AS total_answered_questions,
+        COALESCE(
+            SUM(
+                20
+                + (r.score * 10)
+                + CASE
+                    WHEN r.total_questions > 0 AND r.score = r.total_questions THEN 30
+                    WHEN r.total_questions > 0 AND (r.score / r.total_questions) >= 0.8 THEN 15
+                    ELSE 0
+                END
+            ),
+            0
+        ) AS total_xp
+    FROM results r
+    WHERE r.user_id = %s;
+    """
+    stats = fetch_one(stats_sql, (user_id,)) or {}
+
+    quizzes_played = int(stats.get("quizzes_played") or 0)
+    total_correct_answers = int(stats.get("total_correct_answers") or 0)
+    total_answered_questions = int(stats.get("total_answered_questions") or 0)
+    total_xp = int(stats.get("total_xp") or 0)
+
+    success_pct = 0.0
+    if total_answered_questions > 0:
+        success_pct = round((total_correct_answers / total_answered_questions) * 100, 2)
+
+    level = (total_xp // 100) + 1
+    next_level_xp = level * 100
+    xp_progress_pct = total_xp % 100
+
+    return {
+        "user_id": user["user_id"],
+        "username": user["username"],
+        "profile_title": user.get("profile_title"),
+        "level": level,
+        "total_xp": total_xp,
+        "next_level_xp": next_level_xp,
+        "xp_progress_pct": xp_progress_pct,
+        "quizzes_played": quizzes_played,
+        "success_pct": success_pct,
+    }
+
+
+def update_user_profile_title(user_id: int, profile_title: str | None):
+    """Aktualizuje uživatelský profilový title."""
+    ensure_users_profile_title_column()
+    sql = "UPDATE users SET profile_title = %s WHERE user_id = %s;"
+    return execute(sql, (profile_title, user_id))
+
+
 # ---------------------------------------------------------------------------
 # Otázky - CRUD pro admin web
 # ---------------------------------------------------------------------------
 
-def list_questions(search: str = "", category_id: int | None = None, difficulty_id: int | None = None):
-    """Vrátí seznam otázek s napojenou kategorií a obtížností."""
+def _build_questions_where(search: str = "", category_id: int | None = None, difficulty_id: int | None = None):
+    """Sestaví WHERE část pro filtrování otázek."""
     conditions = []
     params = []
 
@@ -225,6 +316,19 @@ def list_questions(search: str = "", category_id: int | None = None, difficulty_
     where_sql = ""
     if conditions:
         where_sql = "WHERE " + " AND ".join(conditions)
+
+    return where_sql, params
+
+
+def list_questions(
+    search: str = "",
+    category_id: int | None = None,
+    difficulty_id: int | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+):
+    """Vrátí seznam otázek s napojenou kategorií a obtížností."""
+    where_sql, params = _build_questions_where(search, category_id, difficulty_id)
 
     sql = f"""
     SELECT
@@ -245,9 +349,31 @@ def list_questions(search: str = "", category_id: int | None = None, difficulty_
     LEFT JOIN questions_categories qc ON qc.question_id = q.question_id
     LEFT JOIN categories c ON c.category_id = qc.category_id
     {where_sql}
-    ORDER BY q.question_id DESC;
+    ORDER BY q.question_id DESC
     """
+
+    if limit is not None:
+        sql += " LIMIT %s"
+        params.append(limit)
+        if offset and offset > 0:
+            sql += " OFFSET %s"
+            params.append(offset)
+
+    sql += ";"
     return fetch_all(sql, tuple(params))
+
+
+def count_questions(search: str = "", category_id: int | None = None, difficulty_id: int | None = None):
+    """Vrátí počet otázek podle filtru."""
+    where_sql, params = _build_questions_where(search, category_id, difficulty_id)
+    sql = f"""
+    SELECT COUNT(*) AS total
+    FROM questions q
+    LEFT JOIN questions_categories qc ON qc.question_id = q.question_id
+    {where_sql};
+    """
+    row = fetch_one(sql, tuple(params))
+    return int((row or {}).get("total") or 0)
 
 
 def get_question_by_id(question_id: int):
@@ -448,10 +574,17 @@ def _build_results_where(filters: dict):
     return where_sql, params
 
 
-def get_filtered_results(filters: dict | None = None, order: str = "score_desc", limit: int | None = 200):
+def get_filtered_results(
+    filters: dict | None = None,
+    order: str = "score_desc",
+    limit: int | None = 200,
+    offset: int = 0,
+):
     """Vrátí výsledky s JOIN na users/categories/difficulties podle filtrů."""
     ensure_results_duration_column()
     safe_order = {
+        "id_desc": "r.result_id DESC",
+        "id_asc": "r.result_id ASC",
         "score_desc": "r.score DESC, r.played_at DESC",
         "score_asc": "r.score ASC, r.played_at DESC",
         "newest": "r.played_at DESC",
@@ -491,9 +624,27 @@ def get_filtered_results(filters: dict | None = None, order: str = "score_desc",
     if limit is not None:
         sql += " LIMIT %s"
         params.append(limit)
+        if offset and offset > 0:
+            sql += " OFFSET %s"
+            params.append(offset)
 
     sql += ";"
     return fetch_all(sql, tuple(params))
+
+
+def count_filtered_results(filters: dict | None = None):
+    """Vrátí počet výsledků podle aktuálních filtrů."""
+    where_sql, params = _build_results_where(filters or {})
+    sql = f"""
+    SELECT COUNT(*) AS total
+    FROM results r
+    JOIN users u ON u.user_id = r.user_id
+    JOIN categories c ON c.category_id = r.category_id
+    JOIN difficulties d ON d.difficulty_id = r.difficulty_id
+    {where_sql};
+    """
+    row = fetch_one(sql, tuple(params))
+    return int((row or {}).get("total") or 0)
 
 
 def get_leaderboard(limit: int = 20):

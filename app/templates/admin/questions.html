@@ -82,4 +82,29 @@
     </table>
   </div>
 </section>
+
+<section class="pagination-wrap">
+  <div class="pagination-info">
+    Záznamy: {{ pagination.total_rows }} | Stránka {{ pagination.page }} z {{ pagination.total_pages }}
+  </div>
+  {% if pagination.total_pages > 1 %}
+    <nav class="pagination-nav" aria-label="Stránkování správy otázek">
+      {% if pagination.has_prev %}
+        <a class="btn btn-outline btn-sm" href="{{ url_for('admin_questions', **pagination.prev_params) }}">Předchozí</a>
+      {% endif %}
+
+      {% for item in pagination.page_items %}
+        {% if item.number == pagination.page %}
+          <span class="pagination-current">{{ item.number }}</span>
+        {% else %}
+          <a class="btn btn-outline btn-sm" href="{{ url_for('admin_questions', **item.params) }}">{{ item.number }}</a>
+        {% endif %}
+      {% endfor %}
+
+      {% if pagination.has_next %}
+        <a class="btn btn-outline btn-sm" href="{{ url_for('admin_questions', **pagination.next_params) }}">Další</a>
+      {% endif %}
+    </nav>
+  {% endif %}
+</section>
 {% endblock %}

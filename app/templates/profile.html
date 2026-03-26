@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <h1>Můj profil</h1>
+  <p>Přehled levelu, XP a osobních statistik.</p>
+</section>
+
+<section class="profile-layout">
+  <div class="panel profile-main">
+    <div class="profile-header">
+      <h2>{{ profile.username }}</h2>
+      <span class="badge">Level {{ profile.level }} - {{ current_title }}</span>
+    </div>
+
+    <div class="profile-metric-grid">
+      <div class="profile-metric">
+        <span class="muted">Aktuální level</span>
+        <strong>Level {{ profile.level }}</strong>
+      </div>
+      <div class="profile-metric">
+        <span class="muted">Celkové XP</span>
+        <strong>{{ profile.total_xp }} XP</strong>
+      </div>
+      <div class="profile-metric">
+        <span class="muted">Počet odehraných kvízů</span>
+        <strong>{{ profile.quizzes_played }}</strong>
+      </div>
+      <div class="profile-metric">
+        <span class="muted">Úspěšnost</span>
+        <strong>{{ profile.success_pct }} %</strong>
+      </div>
+    </div>
+
+    <div class="xp-block">
+      <div class="xp-label">
+        <span>XP do dalšího levelu</span>
+        <strong>{{ profile.total_xp }} / {{ profile.next_level_xp }}</strong>
+      </div>
+      <div class="xp-progress">
+        <div class="xp-progress-fill" style="width: {{ profile.xp_progress_pct }}%;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Profilový title</h2>
+    <p>Můžeš si vybrat title, který už máš odemčený podle levelu.</p>
+
+    <form method="post" class="form-grid">
+      <label for="profile_title">Vybraný title</label>
+      <select id="profile_title" name="profile_title">
+        <option value="">Automaticky ({{ auto_title }})</option>
+        {% for title in available_titles %}
+          <option value="{{ title }}" {% if selected_title == title %}selected{% endif %}>{{ title }}</option>
+        {% endfor %}
+      </select>
+
+      <button class="btn btn-primary" type="submit">Uložit title</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

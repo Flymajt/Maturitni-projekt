@@ -26,8 +26,6 @@
       </p>
       {% if current_user.role == 'admin' %}
         <a class="btn btn-primary" href="{{ url_for('admin_dashboard') }}">Přejít do administrace</a>
-      {% else %}
-        <p>Admin funkce jsou dostupné pouze účtu s rolí <code>admin</code>.</p>
       {% endif %}
     {% else %}
       <h3>Nepřihlášený návštěvník</h3>

@@ -46,11 +46,23 @@
             <td>{{ c.description or '-' }}</td>
             <td>{{ c.question_count }}</td>
             <td>
-              <form method="post" class="inline-form" onsubmit="return confirm('Opravdu chceš smazat tuto kategorii?');">
-                <input type="hidden" name="action" value="delete">
-                <input type="hidden" name="category_id" value="{{ c.category_id }}">
-                <button class="btn btn-danger btn-sm" type="submit">Smazat</button>
-              </form>
+              <div class="actions-cell">
+                <form method="post" class="inline-form" onsubmit="return confirm('Opravdu chceš smazat tuto kategorii?');">
+                  <input type="hidden" name="action" value="delete">
+                  <input type="hidden" name="category_id" value="{{ c.category_id }}">
+                  <button class="btn btn-outline btn-sm" type="submit">Smazat</button>
+                </form>
+                <button
+                  class="btn btn-outline btn-sm"
+                  type="button"
+                  data-category-id="{{ c.category_id }}"
+                  data-category-name="{{ c.name }}"
+                  data-category-description="{{ c.description or '' }}"
+                  onclick="openCategoryDescriptionEditor(this)"
+                >
+                  Upravit popis
+                </button>
+              </div>
             </td>
           </tr>
         {% else %}
@@ -62,4 +74,53 @@
     </table>
   </div>
 </section>
+
+<section class="panel" id="categoryDescriptionEditorPanel" style="display:none;">
+  <h2>Upravit popis kategorie</h2>
+  <form method="post" class="form-grid" id="categoryDescriptionEditorForm">
+    <input type="hidden" name="action" value="update_description">
+    <input type="hidden" name="category_id" id="edit_category_id" required>
+
+    <label for="edit_category_name">Kategorie</label>
+    <input id="edit_category_name" type="text" readonly>
+
+    <label for="edit_description">Nový popis (volitelný)</label>
+    <textarea id="edit_description" name="description" rows="4"></textarea>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Uložit popis</button>
+      <button class="btn btn-outline" type="button" id="cancelCategoryDescriptionEdit">Zrušit</button>
+    </div>
+  </form>
+</section>
+
+<script>
+  const categoryDescriptionEditorPanel = document.getElementById('categoryDescriptionEditorPanel');
+  const editCategoryIdInput = document.getElementById('edit_category_id');
+  const editCategoryNameInput = document.getElementById('edit_category_name');
+  const editDescriptionInput = document.getElementById('edit_description');
+  const cancelCategoryDescriptionEdit = document.getElementById('cancelCategoryDescriptionEdit');
+
+  function openCategoryDescriptionEditor(button) {
+    if (!button || !categoryDescriptionEditorPanel) return;
+
+    editCategoryIdInput.value = button.dataset.categoryId || '';
+    editCategoryNameInput.value = button.dataset.categoryName || '';
+    editDescriptionInput.value = button.dataset.categoryDescription || '';
+
+    categoryDescriptionEditorPanel.style.display = 'block';
+    categoryDescriptionEditorPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    editDescriptionInput.focus();
+  }
+
+  if (cancelCategoryDescriptionEdit) {
+    cancelCategoryDescriptionEdit.addEventListener('click', () => {
+      if (!categoryDescriptionEditorPanel) return;
+      categoryDescriptionEditorPanel.style.display = 'none';
+      editCategoryIdInput.value = '';
+      editCategoryNameInput.value = '';
+      editDescriptionInput.value = '';
+    });
+  }
+</script>
 {% endblock %}

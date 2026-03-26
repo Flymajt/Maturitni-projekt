@@ -115,6 +115,7 @@ def main():
         username varchar(50) NOT NULL UNIQUE,
         password_hash varchar(255) NOT NULL,
         role char(5) NOT NULL DEFAULT 'user',
+        profile_title varchar(50) NULL,
         created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
     );"""
     )
