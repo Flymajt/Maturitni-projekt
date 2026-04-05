@@ -1,18 +1,22 @@
 {% extends "base.html" %}
 
 {% block content %}
+<!-- Horní část stránky profilu s krátkým popisem. -->
 <section class="page-head">
   <h1>Můj profil</h1>
   <p>Přehled levelu, XP a osobních statistik.</p>
 </section>
 
+<!-- Dvousloupcové rozložení: vlevo hlavní statistiky, vpravo výběr title. -->
 <section class="profile-layout">
   <div class="panel profile-main">
+    <!-- Hlavička karty profilu (jméno + aktuální level/title). -->
     <div class="profile-header">
       <h2>{{ profile.username }}</h2>
       <span class="badge">Level {{ profile.level }} - {{ current_title }}</span>
     </div>
 
+    <!-- Mřížka základních metrik uživatele. -->
     <div class="profile-metric-grid">
       <div class="profile-metric">
         <span class="muted">Aktuální level</span>
@@ -32,12 +36,14 @@
       </div>
     </div>
 
+    <!-- XP blok: text + vizuální progress bar. -->
     <div class="xp-block">
       <div class="xp-label">
         <span>XP do dalšího levelu</span>
         <strong>{{ profile.total_xp }} / {{ profile.next_level_xp }}</strong>
       </div>
       <div class="xp-progress">
+        <!-- Šířka progress baru je dynamická hodnota z backendu (v procentech). -->
         <div class="xp-progress-fill" style="width: {{ profile.xp_progress_pct }}%;"></div>
       </div>
     </div>
@@ -47,14 +53,17 @@
     </div>
   </div>
 
+  <!-- Druhá karta: ruční výběr profilového title. -->
   <div class="panel">
     <h2>Profilový title</h2>
     <p>Můžeš si vybrat title, který už máš odemčený podle levelu.</p>
 
+    <!-- Formulář posílá nový title metodou POST na stejnou URL (`/profile`). -->
     <form method="post" class="form-grid">
       <label for="profile_title">Vybraný title</label>
       <select id="profile_title" name="profile_title">
         <option value="">Automaticky ({{ auto_title }})</option>
+        <!-- Cyklus: vypíše všechny tituly, které už má uživatel odemčené. -->
         {% for title in available_titles %}
           <option value="{{ title }}" {% if selected_title == title %}selected{% endif %}>{{ title }}</option>
         {% endfor %}

@@ -1,6 +1,8 @@
 ﻿{% extends "base.html" %}
 
 {% block content %}
+<!-- Hlavička formuláře.
+     Podle proměnné `mode` se stejná šablona používá pro edit i vytváření nových otázek. -->
 <section class="page-head split">
   <div>
     <h1>{% if mode == 'edit' %}Úprava otázky{% else %}Nové otázky{% endif %}</h1>
@@ -13,8 +15,12 @@
   <a class="btn btn-outline" href="{{ url_for('admin_questions') }}">Zpět na seznam</a>
 </section>
 
+<!-- Tady se šablona rozhoduje:
+     - `mode == 'edit'` => formulář pro úpravu jedné otázky
+     - jinak => hromadné vytváření více otázek -->
 {% if mode == 'edit' %}
 <section class="panel">
+  <!-- Editační formulář jedné otázky. -->
   <form method="post" class="form-grid two-columns">
     <label for="question_text">Text otázky</label>
     <textarea id="question_text" name="question_text" rows="3" required>{{ question.question_text or '' }}</textarea>
@@ -32,13 +38,16 @@
     <input id="answer_d" name="answer_d" type="text" value="{{ question.answer_d or '' }}" required>
 
     <label for="correct_answer">Správná odpověď</label>
+    <!-- Výběr správné odpovědi A/B/C/D. -->
     <select id="correct_answer" name="correct_answer" required>
+      <!-- Cyklus: vytvoří 4 možnosti v selectu. -->
       {% for letter in ['A', 'B', 'C', 'D'] %}
         <option value="{{ letter }}" {% if (question.correct_answer or 'A') == letter %}selected{% endif %}>{{ letter }}</option>
       {% endfor %}
     </select>
 
     <label for="category_id">Kategorie</label>
+    <!-- Kategorie se načítají z backendu. -->
     <select id="category_id" name="category_id" required>
       <option value="">Vyber kategorii</option>
       {% for c in categories %}
@@ -47,6 +56,7 @@
     </select>
 
     <label for="difficulty_id">Obtížnost</label>
+    <!-- Obtížnosti se načítají z backendu. -->
     <select id="difficulty_id" name="difficulty_id" required>
       <option value="">Vyber obtížnost</option>
       {% for d in difficulties %}
@@ -62,12 +72,15 @@
 </section>
 {% else %}
 <section class="panel">
+  <!-- Hromadný formulář: lze vytvořit více otázek najednou. -->
   <form method="post" id="bulkQuestionForm" class="form-grid">
     <div class="form-actions">
+      <!-- Toto tlačítko neodesílá formulář, jen přidá další blok otázky přes JavaScript. -->
       <button type="button" id="addQuestionBtn" class="btn btn-secondary">Přidat další otázku</button>
     </div>
 
     <div id="questionItems" class="question-items">
+      <!-- První výchozí blok otázky. -->
       <article class="question-item" data-index="1">
         <div class="question-item-head">
           <h3>Otázka #1</h3>
@@ -90,6 +103,7 @@
         <input name="answer_d[]" type="text" required>
 
         <label>Správná odpověď</label>
+        <!-- `[]` v názvu pole znamená, že backend dostane seznam hodnot. -->
         <select name="correct_answer[]" required>
           <option value="A">A</option>
           <option value="B">B</option>
@@ -122,6 +136,7 @@
   </form>
 </section>
 
+<!-- Skrytá HTML šablona, ze které JavaScript klonuje nové bloky otázek. -->
 <template id="questionItemTemplate">
   <article class="question-item">
     <div class="question-item-head">
@@ -170,13 +185,16 @@
   </article>
 </template>
 
+<!-- JavaScript obsluhuje přidávání/odebírání bloků otázek. -->
 <script>
   const addBtn = document.getElementById('addQuestionBtn');
   const container = document.getElementById('questionItems');
   const template = document.getElementById('questionItemTemplate');
 
   function updateQuestionHeadings() {
+    // Vezmeme všechny aktuálně zobrazené bloky otázek.
     const items = container.querySelectorAll('.question-item');
+    // Cyklus: projdeme je jeden po druhém a přepočítáme číslování.
     items.forEach((item, index) => {
       const number = index + 1;
       const title = item.querySelector('h3');
@@ -186,19 +204,24 @@
 
       const removeBtn = item.querySelector('.remove-question');
       if (removeBtn) {
+        // Tady se skript rozhoduje:
+        // když je jen 1 blok, tlačítko "Odebrat" zakážeme.
         removeBtn.disabled = items.length === 1;
       }
     });
   }
 
+  // Po kliknutí na "Přidat další otázku" zkopírujeme obsah z `<template>`.
   addBtn.addEventListener('click', () => {
     const clone = template.content.firstElementChild.cloneNode(true);
     container.appendChild(clone);
     updateQuestionHeadings();
   });
 
+  // Delegovaný click handler pro tlačítka "Odebrat".
   container.addEventListener('click', (event) => {
     const target = event.target;
+    // Když se nekliklo na tlačítko odebrání, nic neděláme.
     if (!target.classList.contains('remove-question')) {
       return;
     }
@@ -208,6 +231,7 @@
       return;
     }
 
+    // Bezpečnost: nikdy nenecháme formulář úplně bez jediného bloku otázky.
     if (container.querySelectorAll('.question-item').length <= 1) {
       return;
     }

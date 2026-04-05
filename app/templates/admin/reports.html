@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+<!-- Hlavička stránky s nahlášenými otázkami. -->
 <section class="page-head split">
   <div>
     <h1>Hlášení otázek</h1>
@@ -9,12 +10,14 @@
   <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">Zpět na dashboard</a>
 </section>
 
+<!-- Filtr podle statusu hlášení. -->
 <section class="panel">
   <form method="get" class="filter-grid">
     <div>
       <label for="status">Status</label>
       <select id="status" name="status">
         <option value="" {% if not status %}selected{% endif %}>Všechny</option>
+        <!-- Cyklus statusů dodaných backendem. -->
         {% for s in statuses %}
           <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ status_labels[s] }}</option>
         {% endfor %}
@@ -28,6 +31,7 @@
   </form>
 </section>
 
+<!-- Hlavní tabulka hlášení. -->
 <section class="panel">
   <div class="table-wrap">
     <table>
@@ -44,6 +48,7 @@
         </tr>
       </thead>
       <tbody>
+        <!-- Cyklus: každé hlášení `r` = jeden řádek tabulky. -->
         {% for r in rows %}
           <tr>
             <td>{{ r.report_id }}</td>
@@ -57,11 +62,13 @@
             <td>{{ r.note or '-' }}</td>
             <td>{{ r.created_at }}</td>
             <td>
+              <!-- Formulář uvnitř řádku mění status konkrétního hlášení. -->
               <form method="post" class="form-grid report-action-form">
                 <input type="hidden" name="report_id" value="{{ r.report_id }}">
                 <input type="hidden" name="current_status" value="{{ status }}">
                 <input type="hidden" name="redirect_page" value="{{ pagination.page }}">
                 <select name="new_status" required>
+                  <!-- Cyklus: nabídka všech povolených statusů. -->
                   {% for s in statuses %}
                     <option value="{{ s }}" {% if r.status == s %}selected{% endif %}>{{ status_labels[s] }}</option>
                   {% endfor %}
@@ -73,6 +80,7 @@
               {% endif %}
             </td>
           </tr>
+        <!-- `else` cyklu: zobrazí se, když žádné hlášení neodpovídá filtru. -->
         {% else %}
           <tr>
             <td colspan="8" class="muted">Žádná hlášení pro tento filtr.</td>
@@ -83,6 +91,7 @@
   </div>
 </section>
 
+<!-- Stránkování hlášení. -->
 <section class="pagination-wrap">
   <div class="pagination-info">
     Záznamy: {{ pagination.total_rows }} | Stránka {{ pagination.page }} z {{ pagination.total_pages }}
@@ -93,6 +102,7 @@
         <a class="btn btn-outline btn-sm" href="{{ url_for('admin_reports', **pagination.prev_params) }}">Předchozí</a>
       {% endif %}
 
+      <!-- Cyklus přes jednotlivé stránky. -->
       {% for item in pagination.page_items %}
         {% if item.number == pagination.page %}
           <span class="pagination-current">{{ item.number }}</span>

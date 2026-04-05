@@ -1,6 +1,7 @@
 ﻿{% extends "base.html" %}
 
 {% block content %}
+<!-- Hlavička osobní historie + tlačítko zpět na profil. -->
 <section class="page-head split">
   <div>
     <h1>Moje historie</h1>
@@ -9,7 +10,9 @@
   <a class="btn btn-outline" href="{{ url_for('profile') }}">Zpět na profil</a>
 </section>
 
+<!-- Dvě horní karty: souhrn statistik + trend graf. -->
 <section class="stats-grid">
+  <!-- Souhrnná čísla z backendu (`summary`). -->
   <article class="panel">
     <h2>Souhrn</h2>
     <div class="profile-metric-grid">
@@ -32,18 +35,21 @@
     </div>
   </article>
 
+  <!-- Místo pro graf úspěšnosti (canvas vyplní JavaScript). -->
   <article class="panel chart-panel">
     <h2>Úspěšnost posledních 10 her</h2>
     <canvas id="historyTrendChart"></canvas>
   </article>
 </section>
 
+<!-- Filtr historie (GET formulář => hodnoty jsou v URL). -->
 <section class="panel">
   <form method="get" class="filter-grid">
     <div>
       <label for="category_id">Kategorie</label>
       <select id="category_id" name="category_id">
         <option value="">Všechny</option>
+        <!-- Cyklus možností kategorií. -->
         {% for c in options.categories %}
           <option value="{{ c.category_id }}" {% if filters.category_id == c.category_id %}selected{% endif %}>{{ c.name }}</option>
         {% endfor %}
@@ -54,6 +60,7 @@
       <label for="difficulty_id">Obtížnost</label>
       <select id="difficulty_id" name="difficulty_id">
         <option value="">Všechny</option>
+        <!-- Cyklus možností obtížností. -->
         {% for d in options.difficulties %}
           <option value="{{ d.difficulty_id }}" {% if filters.difficulty_id == d.difficulty_id %}selected{% endif %}>{{ d.name }}</option>
         {% endfor %}
@@ -88,6 +95,7 @@
   </form>
 </section>
 
+<!-- Tabulka konkrétních výsledků uživatele. -->
 <section class="panel">
   <div class="table-wrap">
     <table>
@@ -103,6 +111,7 @@
         </tr>
       </thead>
       <tbody>
+        <!-- Cyklus přes jednotlivé pokusy (řádky historie). -->
         {% for r in rows %}
           <tr>
             <td>{{ r.result_id }}</td>
@@ -113,6 +122,7 @@
             <td>{{ r.duration_seconds | format_duration }}</td>
             <td>{{ r.played_at }}</td>
           </tr>
+        <!-- `else` cyklu: co se ukáže, když `rows` neobsahuje žádná data. -->
         {% else %}
           <tr>
             <td colspan="7" class="muted">Zatím tu nejsou žádné výsledky pro zvolený filtr.</td>
@@ -123,6 +133,7 @@
   </div>
 </section>
 
+<!-- Stránkování tabulky historie. -->
 <section class="pagination-wrap">
   <div class="pagination-info">
     Záznamy: {{ pagination.total_rows }} | Stránka {{ pagination.page }} z {{ pagination.total_pages }}
@@ -133,6 +144,7 @@
         <a class="btn btn-outline btn-sm" href="{{ url_for('my_history', **pagination.prev_params) }}">Předchozí</a>
       {% endif %}
 
+      <!-- Cyklus přes čísla stránek. -->
       {% for item in pagination.page_items %}
         {% if item.number == pagination.page %}
           <span class="pagination-current">{{ item.number }}</span>
@@ -148,12 +160,17 @@
   {% endif %}
 </section>
 
+<!-- Externí knihovna Chart.js pro vykreslení grafu. -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script>
+  // `trend_rows` je JSON z backendu (Jinja `tojson`).
   const trendRows = {{ trend_rows | tojson }};
+  // Připravíme popisky osy X (Hra 1, Hra 2, ...).
   const trendLabels = trendRows.map((_, index) => `Hra ${index + 1}`);
+  // Připravíme číselné hodnoty úspěšnosti na osu Y.
   const trendValues = trendRows.map((row) => Number(row.success_pct || 0));
 
+  // Graf má smysl jen když existuje aspoň jeden záznam.
   if (trendRows.length > 0) {
     new Chart(document.getElementById('historyTrendChart'), {
       type: 'line',
@@ -186,8 +203,10 @@
   const dateTo = document.getElementById('date_to');
 
   function syncDateMin() {
+    // Bez obou inputů nemůžeme nic synchronizovat.
     if (!dateFrom || !dateTo) return;
     dateTo.min = dateFrom.value || '';
+    // Když je rozsah špatně, opravíme `date_to` na stejnou hodnotu jako `date_from`.
     if (dateFrom.value && dateTo.value && dateTo.value < dateFrom.value) {
       dateTo.value = dateFrom.value;
     }

@@ -1,18 +1,23 @@
 ﻿{% extends "base.html" %}
 
 {% block content %}
+<!-- Úzká sekce pro formulář, aby login nebyl přes celou šířku stránky. -->
 <section class="form-section narrow">
   <div class="panel">
     <h1>Přihlášení na web</h1>
     <p>Použij stejné údaje jako v desktopové aplikaci.</p>
 
+    <!-- Přihlašovací formulář posílá data metodou POST na stejnou URL (`/login`). -->
     <form method="post" class="form-grid">
       <label for="username">Uživatelské jméno</label>
       <input id="username" name="username" type="text" autocomplete="username" required>
 
       <label for="password">Heslo</label>
+      <!-- Blok hesla obsahuje input + ikonové tlačítko pro zobrazení/skrytí hesla. -->
       <div class="password-field">
         <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <!-- `type="button"` je důležité:
+             bez toho by se při kliknutí omylem odeslal celý formulář. -->
         <button class="password-toggle-icon" type="button" data-toggle-password="password" aria-label="Zobrazit heslo">
           <svg class="icon-eye-off" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M10.58 10.58a2 2 0 0 0 2.83 2.83"></path>
@@ -34,11 +39,17 @@
   </div>
 </section>
 
+<!-- Jednoduchý JavaScript pro přepínání viditelnosti hesla. -->
 <script>
+  // Projdeme všechna tlačítka s atributem `data-toggle-password`.
   document.querySelectorAll('[data-toggle-password]').forEach((btn) => {
+    // Každému tlačítku nastavíme reakci na kliknutí.
     btn.addEventListener('click', () => {
       const input = document.getElementById(btn.dataset.togglePassword);
+      // Bezpečnostní kontrola: když input neexistuje, funkce skončí.
       if (!input) return;
+      // Tady se skript rozhoduje:
+      // pokud je pole skryté (`password`), přepne ho na viditelné (`text`) a naopak.
       const isHidden = input.type === 'password';
       input.type = isHidden ? 'text' : 'password';
       btn.classList.toggle('is-visible', isHidden);

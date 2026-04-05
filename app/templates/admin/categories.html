@@ -1,6 +1,7 @@
 ﻿{% extends "base.html" %}
 
 {% block content %}
+<!-- Hlavička stránky správy kategorií. -->
 <section class="page-head split">
   <div>
     <h1>Správa kategorií</h1>
@@ -9,8 +10,10 @@
   <a class="btn btn-outline" href="{{ url_for('admin_questions') }}">Zpět na otázky</a>
 </section>
 
+<!-- Formulář pro vytvoření nové kategorie. -->
 <section class="panel">
   <h2>Nová kategorie</h2>
+  <!-- `action=create` backend použije k rozlišení, co má udělat. -->
   <form method="post" class="form-grid">
     <input type="hidden" name="action" value="create">
     <label for="name">Název</label>
@@ -25,6 +28,7 @@
   </form>
 </section>
 
+<!-- Tabulka existujících kategorií + akce smazání/úprava popisu. -->
 <section class="panel">
   <h2>Existující kategorie</h2>
   <div class="table-wrap">
@@ -39,6 +43,7 @@
         </tr>
       </thead>
       <tbody>
+        <!-- Cyklus: každá kategorie `c` vytvoří jeden řádek tabulky. -->
         {% for c in categories %}
           <tr>
             <td>{{ c.category_id }}</td>
@@ -47,11 +52,13 @@
             <td>{{ c.question_count }}</td>
             <td>
               <div class="actions-cell">
+                <!-- Formulář pro smazání jedné konkrétní kategorie. -->
                 <form method="post" class="inline-form" onsubmit="return confirm('Opravdu chceš smazat tuto kategorii?');">
                   <input type="hidden" name="action" value="delete">
                   <input type="hidden" name="category_id" value="{{ c.category_id }}">
                   <button class="btn btn-outline btn-sm" type="submit">Smazat</button>
                 </form>
+                <!-- Tlačítko jen otevře editor popisu (neodesílá formulář). -->
                 <button
                   class="btn btn-outline btn-sm"
                   type="button"
@@ -65,6 +72,7 @@
               </div>
             </td>
           </tr>
+        <!-- `else` cyklu: zobrazení při prázdném seznamu kategorií. -->
         {% else %}
           <tr>
             <td colspan="5" class="muted">Zatím není vytvořena žádná kategorie.</td>
@@ -75,6 +83,7 @@
   </div>
 </section>
 
+<!-- Skrytý panel pro úpravu popisu; zobrazí se až po kliknutí na "Upravit popis". -->
 <section class="panel" id="categoryDescriptionEditorPanel" style="display:none;">
   <h2>Upravit popis kategorie</h2>
   <form method="post" class="form-grid" id="categoryDescriptionEditorForm">
@@ -94,6 +103,7 @@
   </form>
 </section>
 
+<!-- JavaScript obsluhuje otevření/zavření editoru popisu. -->
 <script>
   const categoryDescriptionEditorPanel = document.getElementById('categoryDescriptionEditorPanel');
   const editCategoryIdInput = document.getElementById('edit_category_id');
@@ -102,18 +112,22 @@
   const cancelCategoryDescriptionEdit = document.getElementById('cancelCategoryDescriptionEdit');
 
   function openCategoryDescriptionEditor(button) {
+    // Když není tlačítko nebo panel, funkce skončí bez chyby.
     if (!button || !categoryDescriptionEditorPanel) return;
 
+    // Přeneseme data z HTML `data-*` atributů do inputů formuláře.
     editCategoryIdInput.value = button.dataset.categoryId || '';
     editCategoryNameInput.value = button.dataset.categoryName || '';
     editDescriptionInput.value = button.dataset.categoryDescription || '';
 
+    // Zobrazíme panel, posuneme se k němu a nastavíme fokus do textarea.
     categoryDescriptionEditorPanel.style.display = 'block';
     categoryDescriptionEditorPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     editDescriptionInput.focus();
   }
 
   if (cancelCategoryDescriptionEdit) {
+    // Po kliknutí na Zrušit panel schováme a pole vyčistíme.
     cancelCategoryDescriptionEdit.addEventListener('click', () => {
       if (!categoryDescriptionEditorPanel) return;
       categoryDescriptionEditorPanel.style.display = 'none';

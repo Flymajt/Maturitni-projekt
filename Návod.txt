@@ -1,0 +1,8 @@
+Knihovny:
+Nainstalovat knihovny, jsou vypsány v souboru requirements.txt
+
+Spuštění:
+Pro spuštění aplikace je třeba spustit soubor run_desktop.py
+Pro spuštění webu je třeba spustit soubor run.py
+Pro spuštění testu je třeba spusti soubor test_quiz_logic.py ve složce tests
+

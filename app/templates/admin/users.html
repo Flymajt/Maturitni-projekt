@@ -1,11 +1,13 @@
 ﻿{% extends "base.html" %}
 
 {% block content %}
+<!-- Hlavička stránky správy uživatelů. -->
 <section class="page-head">
   <h1>Registrovaní uživatelé</h1>
   <p>Správa uživatelů je na jedné stránce: vyber uživatele a dole proveď požadovanou úpravu.</p>
 </section>
 
+<!-- Přehledová tabulka všech uživatelů. -->
 <section class="panel">
   <h2>Seznam uživatelů</h2>
   <div class="table-wrap compact">
@@ -19,6 +21,7 @@
         </tr>
       </thead>
       <tbody>
+        <!-- Cyklus: každý uživatel `u` vytvoří jeden řádek tabulky. -->
         {% for u in users %}
           <tr>
             <td>{{ u.user_id }}</td>
@@ -26,6 +29,7 @@
             <td><span class="badge {% if u.role == 'admin' %}badge-admin{% endif %}">{{ u.role }}</span></td>
             <td>{{ u.created_at }}</td>
           </tr>
+        <!-- `else` cyklu: informace při prázdném seznamu. -->
         {% else %}
           <tr>
             <td colspan="4" class="muted">V databázi zatím nejsou žádní uživatelé.</td>
@@ -36,12 +40,16 @@
   </div>
 </section>
 
+<!-- Formulář pro administrativní akce nad vybraným uživatelem. -->
 <section class="panel">
   <h2>Různé úpravy uživatele</h2>
+  <!-- Jeden formulář, který obsluhuje 3 různé akce:
+       smazání, přejmenování, změna hesla. -->
   <form method="post" id="userManagementForm" class="form-grid">
     <label for="selected_user_id">1) Vyber uživatele</label>
     <select id="selected_user_id" name="selected_user_id" required>
       <option value="">Vyber uživatele</option>
+      <!-- Cyklus možností ve výběru uživatele. -->
       {% for u in users %}
         <option value="{{ u.user_id }}" {% if selected_user_id == u.user_id %}selected{% endif %}>{{ u.username }} ({{ u.role }})</option>
       {% endfor %}
@@ -55,11 +63,15 @@
       <option value="password">Změnit heslo uživatele</option>
     </select>
 
+    <!-- Tato sekce je ve výchozím stavu skrytá.
+         JavaScript ji zobrazí jen pro akci "rename". -->
     <div id="renameFields" style="display:none;">
       <label for="new_username">Nové uživatelské jméno</label>
       <input id="new_username" name="new_username" type="text" minlength="3">
     </div>
 
+    <!-- Tato sekce je ve výchozím stavu skrytá.
+         JavaScript ji zobrazí jen pro akci "password". -->
     <div id="passwordFields" style="display:none;">
       <label for="new_password">Nové heslo</label>
       <div class="password-field">
@@ -102,6 +114,10 @@
   </form>
 </section>
 
+<!-- JavaScript obsluhuje:
+     1) přepínání viditelných polí podle akce
+     2) potvrzení mazání
+     3) zobrazení/skrytí hesla -->
 <script>
   const actionSelect = document.getElementById('admin_action');
   const renameFields = document.getElementById('renameFields');
@@ -109,6 +125,7 @@
   const form = document.getElementById('userManagementForm');
 
   function updateActionFields() {
+    // Podle vybrané akce ukážeme správná pole formuláře.
     const action = actionSelect.value;
     renameFields.style.display = action === 'rename' ? 'block' : 'none';
     passwordFields.style.display = action === 'password' ? 'block' : 'none';
@@ -117,6 +134,7 @@
   actionSelect.addEventListener('change', updateActionFields);
   updateActionFields();
 
+  // Před smazáním zobrazíme potvrzovací dialog.
   form.addEventListener('submit', (event) => {
     if (actionSelect.value === 'delete') {
       const ok = confirm('Opravdu chceš vymazat vybraného uživatele?');
@@ -126,9 +144,11 @@
     }
   });
 
+  // Přepínání viditelnosti hesla pro všechna tlačítka s `data-toggle-password`.
   document.querySelectorAll('[data-toggle-password]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const input = document.getElementById(btn.dataset.togglePassword);
+      // Když input nenajdeme, skript bezpečně skončí.
       if (!input) return;
       const isHidden = input.type === 'password';
       input.type = isHidden ? 'text' : 'password';

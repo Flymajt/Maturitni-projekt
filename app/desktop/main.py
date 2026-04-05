@@ -2,10 +2,15 @@
 
 from PyQt5.QtWidgets import QApplication
 
+# Přihlašovací okno.
+# Soubor: `app/desktop/ui/login_window.py`.
 from app.desktop.ui.login_window import LoginWindow
+# Okno výběru kategorie/obtížnosti.
+# Soubor: `app/desktop/ui/start_window.py`.
 from app.desktop.ui.start_window import StartWindow
 
 
+# Globální vizuální styl desktop aplikace (QSS podobné CSS).
 DESKTOP_THEME = """
 QWidget {
     background-color: #EBF4F6;
@@ -169,30 +174,41 @@ QComboBox QAbstractItemView {
 """
 
 
+# Třída, která řídí tok aplikace mezi jednotlivými okny.
 class AppController:
-    """Řídí tok desktop aplikace mezi loginem a startem kvízu."""
-
     def __init__(self):
+        # Aktuálně přihlášený uživatel (po loginu).
         self.user = None
+        # Reference na start okno, aby objekt nezanikl.
         self.start_window = None
+        # Reference na login okno.
         self.login_window = None
 
     def run(self):
-        """Spustí aplikaci a otevře přihlašovací okno."""
+        # Vytvoříme login okno a předáme callback, který se zavolá při úspěšném loginu.
         self.login_window = LoginWindow(on_login_success=self.on_login_success)
         self.login_window.show()
 
     def on_login_success(self, user):
-        """Po úspěšném loginu uloží uživatele a otevře start okno."""
+        # Uložíme data přihlášeného uživatele.
         self.user = user
+
+        # Otevřeme start okno (výběr kategorie/obtížnosti/režimu).
         self.start_window = StartWindow(user=self.user)
         self.start_window.show()
 
 
+# Tento blok se spustí jen při přímém spuštění souboru `python .../main.py`.
 if __name__ == "__main__":
+    # Vytvoření Qt aplikace.
     app = QApplication(sys.argv)
+
+    # Nastavení globálního motivu (QSS) pro všechna okna.
     app.setStyleSheet(DESKTOP_THEME)
 
+    # Inicializace řadiče aplikace.
     controller = AppController()
     controller.run()
+
+    # Spuštění hlavní smyčky GUI.
     sys.exit(app.exec_())

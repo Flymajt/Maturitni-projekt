@@ -1,6 +1,7 @@
 ﻿{% extends "base.html" %}
 
 {% block content %}
+<!-- Hlavní úvodní sekce stránky (hero). -->
 <section class="hero">
   <div>
     <h1>Interaktivní kvízový systém</h1>
@@ -9,21 +10,26 @@
       a webová část následně zobrazuje leaderboard i statistiky.
     </p>
 
+    <!-- Skupina hlavních tlačítek s odkazy na klíčové části webu. -->
     <div class="hero-actions">
       <a class="btn btn-primary" href="{{ url_for('leaderboard') }}">Zobrazit leaderboard</a>
       <a class="btn btn-outline" href="{{ url_for('stats_page') }}">Otevřít statistiky</a>
+      <!-- Podmínka: tlačítko pro přihlášení se zobrazí jen nepřihlášenému návštěvníkovi. -->
       {% if not current_user %}
         <a class="btn btn-secondary" href="{{ url_for('login') }}">Přihlásit se na web</a>
       {% endif %}
     </div>
   </div>
 
+  <!-- Pravý panel s informací o aktuálním uživateli. -->
   <div class="hero-card">
+    <!-- Tady se šablona rozhoduje podle stavu přihlášení. -->
     {% if current_user %}
       <h3>Jsi přihlášen jako {{ current_user.username }}</h3>
       <p>
         Role: <strong>{{ current_user.role }}</strong>
       </p>
+      <!-- Vnořená podmínka: admin dostane navíc odkaz do administrace. -->
       {% if current_user.role == 'admin' %}
         <a class="btn btn-primary" href="{{ url_for('admin_dashboard') }}">Přejít do administrace</a>
       {% endif %}
@@ -34,8 +40,10 @@
   </div>
 </section>
 
+<!-- Druhá sekce ukazuje poslední uložené výsledky. -->
 <section class="panel">
   <h2>Poslední uložené výsledky</h2>
+  <!-- Podmínka: pokud data existují, vykreslí se tabulka. -->
   {% if recent_results %}
     <div class="table-wrap compact">
       <table>
@@ -48,6 +56,7 @@
           </tr>
         </thead>
         <tbody>
+          <!-- Cyklus: každý prvek `r` vytvoří jeden řádek tabulky. -->
           {% for r in recent_results %}
             <tr>
               <td>{{ r.username }}</td>

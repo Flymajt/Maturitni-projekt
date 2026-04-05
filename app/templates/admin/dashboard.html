@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+<!-- Úvod admin stránky (dashboard). -->
 <section class="page-head split">
   <div>
     <h1>Administrace</h1>
@@ -8,27 +9,33 @@
   </div>
 </section>
 
+<!-- Přehledové karty: každá karta je rychlý vstup do jedné části administrace. -->
 <section class="admin-cards">
+  <!-- Odkaz na správu otázek (route `admin_questions`). -->
   <a class="panel admin-card" href="{{ url_for('admin_questions') }}">
     <h2>Správa otázek</h2>
     <p>Vytvářej, upravuj a maž otázky včetně kategorií a obtížností.</p>
   </a>
 
+  <!-- Odkaz na správu kategorií (route `admin_categories`). -->
   <a class="panel admin-card" href="{{ url_for('admin_categories') }}">
     <h2>Správa kategorií</h2>
     <p>Přidávej nové kategorie, které pak použiješ při tvorbě otázek.</p>
   </a>
 
+  <!-- Odkaz na správu výsledků (route `admin_results`). -->
   <a class="panel admin-card" href="{{ url_for('admin_results') }}">
     <h2>Správa výsledků</h2>
     <p>Filtruj výsledky, exportuj je do CSV a hromadně maž vybrané záznamy.</p>
   </a>
 
+  <!-- Odkaz na správu uživatelů (route `admin_users`). -->
   <a class="panel admin-card" href="{{ url_for('admin_users') }}">
     <h2>Registrovaní uživatelé</h2>
     <p>Přehled všech účtů + spodní sekce pro správu: vymazání, přejmenování a změna hesla uživatele.</p>
   </a>
 
+  <!-- Odkaz na správu hlášení problémových otázek (route `admin_reports`). -->
   <a class="panel admin-card" href="{{ url_for('admin_reports') }}">
     <h2>Hlášení otázek</h2>
     <p>Kontrola nahlášených otázek od hráčů a změna statusu řešení.</p>

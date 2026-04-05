@@ -1,16 +1,19 @@
 ﻿{% extends "base.html" %}
 
 {% block content %}
+<!-- Úzký formulář pro registraci nového účtu. -->
 <section class="form-section narrow">
   <div class="panel">
     <h1>Web registrace</h1>
     <p>Po registraci můžeš stejný účet použít ve webu i v desktopové hře.</p>
 
+    <!-- Formulář odesílá data metodou POST na route `/register`. -->
     <form method="post" class="form-grid">
       <label for="username">Uživatelské jméno</label>
       <input id="username" name="username" type="text" autocomplete="username" minlength="3" required>
 
       <label for="password">Heslo</label>
+      <!-- První heslo + tlačítko pro zobrazení/skrytí textu hesla. -->
       <div class="password-field">
         <input
           id="password"
@@ -36,6 +39,7 @@
         </button>
       </div>
 
+      <!-- Druhé heslo slouží ke kontrole, že uživatel neudělal překlep. -->
       <label for="password2">Heslo znovu</label>
       <div class="password-field">
         <input
@@ -69,10 +73,14 @@
   </div>
 </section>
 
+<!-- JavaScript pro přepínání viditelnosti polí s heslem. -->
 <script>
+  // Projdeme všechna tlačítka s atributem `data-toggle-password`.
   document.querySelectorAll('[data-toggle-password]').forEach((btn) => {
+    // Po kliknutí přepneme typ inputu mezi `password` a `text`.
     btn.addEventListener('click', () => {
       const input = document.getElementById(btn.dataset.togglePassword);
+      // Když input nenajdeme, funkce bezpečně skončí.
       if (!input) return;
       const isHidden = input.type === 'password';
       input.type = isHidden ? 'text' : 'password';

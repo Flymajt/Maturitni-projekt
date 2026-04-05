@@ -1,0 +1,4 @@
+﻿Flask==3.0.2
+mysql-connector-python==9.5.0
+PyQt5==5.15.11
+pytest==9.0.2

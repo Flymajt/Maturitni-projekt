@@ -1,6 +1,7 @@
 ﻿{% extends "base.html" %}
 
 {% block content %}
+<!-- Hlavička stránky správy výsledků. -->
 <section class="page-head split">
   <div>
     <h1>Správa výsledků</h1>
@@ -9,10 +10,12 @@
   <a class="btn btn-secondary" href="{{ url_for('results_export_csv', **export_params) }}">Export aktuálního filtru</a>
 </section>
 
+<!-- Filtrační formulář pro výsledky. -->
 <section class="panel">
   <form method="get" class="filter-grid">
     <div>
       <label for="username">Uživatel</label>
+      <!-- Uživatele vybíráme ze seznamu, který backend poslal v `options.users`. -->
       <select id="username" name="username">
         <option value="">Všichni</option>
         {% for u in options.users %}
@@ -25,6 +28,7 @@
 
     <div>
       <label for="category_id">Kategorie</label>
+      <!-- Kategorie z backendu. -->
       <select id="category_id" name="category_id">
         <option value="">Všechny</option>
         {% for c in options.categories %}
@@ -35,6 +39,7 @@
 
     <div>
       <label for="difficulty_id">Obtížnost</label>
+      <!-- Obtížnosti z backendu. -->
       <select id="difficulty_id" name="difficulty_id">
         <option value="">Všechny</option>
         {% for d in options.difficulties %}
@@ -66,6 +71,7 @@
       </select>
     </div>
 
+    <!-- Akce formuláře: filtrovat nebo vrátit výchozí stav. -->
     <div class="filter-actions">
       <button class="btn btn-primary" type="submit">Filtrovat</button>
       <a class="btn btn-outline" href="{{ url_for('admin_results') }}">Reset</a>
@@ -73,6 +79,7 @@
   </form>
 </section>
 
+<!-- Samostatný panel pro import CSV souboru. -->
 <section class="panel import-panel">
   <form method="post" action="{{ url_for('results_import') }}" enctype="multipart/form-data" class="inline-form">
     <label for="csv_file">Import výsledků z CSV:</label>
@@ -82,7 +89,9 @@
   </form>
 </section>
 
+<!-- Tabulka s výsledky + checkboxy pro hromadné mazání. -->
 <section class="panel">
+  <!-- Tento POST formulář odesílá vybraná ID ke smazání. -->
   <form method="post" id="bulkDeleteForm" onsubmit="return confirm('Opravdu chceš smazat vybrané výsledky?');">
     <div class="table-actions">
       <button class="btn btn-danger" type="submit">Smazat vybrané</button>
@@ -104,6 +113,7 @@
           </tr>
         </thead>
         <tbody>
+          <!-- Cyklus: každý výsledek `r` vytvoří jeden řádek tabulky. -->
           {% for r in rows %}
             <tr>
               <td><input type="checkbox" name="selected_results" value="{{ r.result_id }}"></td>
@@ -116,6 +126,7 @@
               <td>{{ r.duration_seconds | format_duration }}</td>
               <td>{{ r.played_at }}</td>
             </tr>
+          <!-- `else` cyklu: zobrazí se při prázdných datech. -->
           {% else %}
             <tr>
               <td colspan="9" class="muted">Žádné výsledky neodpovídají filtru.</td>
@@ -127,14 +138,20 @@
   </form>
 </section>
 
+<!-- JavaScript:
+     1) hlídá logický rozsah datumu
+     2) obsluhuje "zaškrtnout vše". -->
 <script>
   const checkAll = document.getElementById('checkAll');
   const dateFrom = document.getElementById('date_from');
   const dateTo = document.getElementById('date_to');
 
   function syncDateMin() {
+    // Bez obou inputů nemá funkce co dělat.
     if (!dateFrom || !dateTo) return;
+    // Nastavíme minimální datum v poli "do".
     dateTo.min = dateFrom.value || '';
+    // Když uživatel zvolí nelogické datum, opravíme ho.
     if (dateFrom.value && dateTo.value && dateTo.value < dateFrom.value) {
       dateTo.value = dateFrom.value;
     }
@@ -146,6 +163,7 @@
   }
 
   if (checkAll) {
+    // Klik na horní checkbox nastaví stejný stav všem řádkovým checkboxům.
     checkAll.addEventListener('change', () => {
       document.querySelectorAll('input[name="selected_results"]').forEach(cb => {
         cb.checked = checkAll.checked;

@@ -1,20 +1,29 @@
 ﻿import hashlib
 import secrets
 
+# Externí balíček pro připojení k MySQL databázi (instalace přes pip).
 import mysql.connector
 
+# Import konfigurace projektu ze souboru `config.py`
 from config import Config
 
 
 def _hash_password(password: str) -> str:
-    """Vrati heslo ve formatu salt$hash kompatibilnim s login logikou."""
+    # Tato pomocná funkce vezme čisté heslo a vrátí bezpečnější uloženou podobu.
+    # Výsledek bude ve formátu `salt$hash`, stejně jako očekává login logika v aplikaci.
+    # `salt` = náhodný text přidaný k heslu, aby stejné heslo nemělo vždy stejný hash.
     salt = secrets.token_hex(16)
+    # SHA-256 spočítá jednosměrný otisk (hash) z `salt + heslo`.
+    # Jednosměrný znamená: z hashe nejde snadno dostat původní heslo.
     digest = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+    # Uložíme oba kusy dohromady, oddělené znakem `$`.
     return f"{salt}${digest}"
 
 
 def _question_seed_data():
-    """Vrátí seznam všech otázek pro aktuální 4 kategorie."""
+    # Tato funkce vrací připravený seznam otázek, který se vloží do DB při inicializaci.
+    # Každá položka je n-tice v pořadí:
+    # (název_kategorie, název_obtížnosti, text_otázky, odpověď_A, odpověď_B, odpověď_C, odpověď_D, správná_odpověď).
     return [
         # IT / Easy (3)
         ("IT", "Easy", "Co znamená zkratka CPU?", "Central Processing Unit", "Computer Power Unit", "Core Process Utility", "Central Program Usage", "A"),
@@ -103,21 +112,36 @@ def _question_seed_data():
 
 
 def main():
+    # Hlavní funkce pro jednorázovou přípravu databáze.
+    # Pozor: tento skript maže existující tabulky a vytvoří je znovu od nuly.
+
+    # Připojení k MySQL podle hodnot z `Config`.
     mydb = mysql.connector.connect(
+        # Adresa databázového serveru (typicky `localhost` v lokálním vývoji).
         host=Config.DB_HOST,
+        # Uživatelské jméno do databáze.
         user=Config.DB_USER,
+        # Heslo do databáze.
         password=Config.DB_PASSWORD,
+        # Název databáze, ve které budeme vytvářet tabulky.
         database=Config.DB_NAME,
+        # Port: když v configu chybí, použije se výchozí 3306.
         port=getattr(Config, "DB_PORT", 3306),
     )
 
+    # `cursor` je objekt, přes který posíláme SQL příkazy do databáze.
     mycursor = mydb.cursor()
 
+    # Zajistíme UTF-8 (utf8mb4), aby se správně ukládala čeština i speciální znaky.
     mycursor.execute("SET NAMES utf8mb4;")
+    # Dočasně vypneme kontrolu cizích klíčů, aby šlo bezpečně mazat tabulky v libovolném pořadí.
     mycursor.execute("SET FOREIGN_KEY_CHECKS=0;")
+    # Potvrdíme změny nastavení session.
     mydb.commit()
 
-    # DROP tabulek
+    # DROP tabulek:
+    # `IF EXISTS` znamená, že SQL nespadne chybou, když tabulka zatím neexistuje.
+    # Mažeme od tabulek s vazbami, ale s vypnutými FK kontrolami by fungovalo i jinak.
     mycursor.execute("DROP TABLE IF EXISTS question_reports;")
     mycursor.execute("DROP TABLE IF EXISTS question_attempts;")
     mycursor.execute("DROP TABLE IF EXISTS results;")
@@ -126,12 +150,15 @@ def main():
     mycursor.execute("DROP TABLE IF EXISTS categories;")
     mycursor.execute("DROP TABLE IF EXISTS difficulties;")
     mycursor.execute("DROP TABLE IF EXISTS users;")
+    # Potvrdíme mazání.
     mydb.commit()
 
+    # Po mazání vrátíme kontrolu cizích klíčů zpět na zapnuto.
     mycursor.execute("SET FOREIGN_KEY_CHECKS=1;")
     mydb.commit()
 
-    # CREATE tabulek
+    # CREATE tabulek:
+    # Následuje vytvoření všech potřebných tabulek aplikace.
     mycursor.execute(
         """CREATE TABLE users(
         user_id int PRIMARY KEY AUTO_INCREMENT,
@@ -142,6 +169,7 @@ def main():
         created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
     );"""
     )
+    # `commit()` ukládá právě provedený CREATE natrvalo.
     mydb.commit()
 
     mycursor.execute(
@@ -189,6 +217,7 @@ def main():
         FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE
     );"""
     )
+    # Tato tabulka je "spojovací" (vazba otázka <-> kategorie).
     mydb.commit()
 
     mycursor.execute(
@@ -206,6 +235,7 @@ def main():
         FOREIGN KEY (difficulty_id) REFERENCES difficulties(difficulty_id)
     );"""
     )
+    # `duration_seconds` je volitelný sloupec (NULL), když čas není k dispozici.
     mydb.commit()
 
     mycursor.execute(
@@ -226,6 +256,7 @@ def main():
         FOREIGN KEY (difficulty_id) REFERENCES difficulties(difficulty_id)
     );"""
     )
+    # INDEXy v této tabulce zrychlují časté filtrování podle uživatele a času.
     mydb.commit()
 
     mycursor.execute(
@@ -247,18 +278,23 @@ def main():
         FOREIGN KEY (resolved_by) REFERENCES users(user_id) ON DELETE SET NULL
     );"""
     )
+    # `updated_at ... ON UPDATE CURRENT_TIMESTAMP` se aktualizuje automaticky při změně řádku.
     mydb.commit()
 
-    # INSERT: admin
+    # INSERT: admin účet
+    # Vytvoříme hash hesla místo ukládání čistého hesla.
     admin_hash = _hash_password(Config.ADMIN_DEFAULT_PASSWORD)
     mycursor.execute(
+        # `%s` placeholdery = bezpečné předání parametrů bez ručního skládání SQL textu.
         "INSERT INTO users(username, password_hash, role) VALUES (%s, %s, 'admin');",
         (Config.ADMIN_DEFAULT_USERNAME, admin_hash),
     )
+    # `lastrowid` je ID právě vloženého admin uživatele.
     admin_user_id = mycursor.lastrowid
     mydb.commit()
 
-    # Kategorie
+    # Kategorie:
+    # Vložíme 4 základní témata.
     mycursor.execute(
         """INSERT INTO categories(name, description)
         VALUES
@@ -270,7 +306,8 @@ def main():
     )
     mydb.commit()
 
-    # Obtiznosti
+    # Obtížnosti:
+    # Každá obtížnost má také násobič bodů (`points_multiplier`).
     mycursor.execute(
         """INSERT INTO difficulties(name, points_multiplier)
         VALUES
@@ -281,15 +318,18 @@ def main():
     )
     mydb.commit()
 
-    # Mapy ID pro seed otazek
+    # Mapy ID pro seed otázek:
+    # Načteme ID z DB a uděláme slovníky typu "název -> ID",
+    # aby šly otázky z textových názvů převést na cizí klíče.
     mycursor.execute("SELECT category_id, name FROM categories;")
     category_map = {name: category_id for category_id, name in mycursor.fetchall()}
 
     mycursor.execute("SELECT difficulty_id, name FROM difficulties;")
     difficulty_map = {name: difficulty_id for difficulty_id, name in mycursor.fetchall()}
 
-    # Vlozeni otazek + vazeb na kategorie
+    # Vložení otázek + vazeb na kategorie.
     question_rows = _question_seed_data()
+    # Procházíme otázky jednu po druhé.
     for category_name, difficulty_name, q_text, a, b, c, d, correct in question_rows:
         mycursor.execute(
             """
@@ -310,20 +350,27 @@ def main():
                 admin_user_id,
             ),
         )
+        # Uložíme si ID nově vložené otázky.
         question_id = mycursor.lastrowid
 
+        # Do spojovací tabulky uložíme vazbu otázky na konkrétní kategorii.
         mycursor.execute(
             "INSERT INTO questions_categories(question_id, category_id) VALUES (%s, %s);",
             (question_id, category_map[category_name]),
         )
 
+    # Potvrdíme všechny vložené otázky a vazby naráz.
     mydb.commit()
 
+    # Korektně zavřeme kurzor i DB spojení.
     mycursor.close()
     mydb.close()
 
+    # Informační výstup do terminálu.
     print("Hotovo: 4 témata, Easy=3, Medium=5, Hard=7 na každé téma (celkem 60 otázek).")
 
 
 if __name__ == "__main__":
+    # Tento blok se spustí jen při přímém spuštění souboru:
+    # `python db_setup.py`
     main()

@@ -1,10 +1,15 @@
 ﻿import hashlib
 import secrets
 
+# Externí knihovna pro MySQL komunikaci (instalace přes pip).
 import mysql.connector
 
+# Konfigurace databáze pro desktop aplikaci.
+# Soubor: `config.py`.
 from config import Config
 
+# Tyto proměnné si pamatují, jestli jsme už v aktuálním běhu aplikace
+# kontrolovali DB schéma. Díky tomu kontrolu neděláme stále dokola.
 _duration_column_checked = False
 _question_attempts_table_checked = False
 _question_reports_table_checked = False
@@ -15,30 +20,33 @@ _question_reports_table_checked = False
 # ---------------------------------------------------------------------------
 
 def get_connection():
-    """Vytvoří připojení k MySQL podle hodnot v config.py."""
+    # Vytvoří nové připojení do MySQL podle hodnot v `Config`.
     return mysql.connector.connect(
         host=Config.DB_HOST,
         user=Config.DB_USER,
         password=Config.DB_PASSWORD,
         database=Config.DB_NAME,
+        # Když `DB_PORT` není nastavený, použije se standardní port 3306.
         port=getattr(Config, "DB_PORT", 3306),
     )
 
 
 def fetch_all(sql, params=()):
-    """Provede SELECT a vrátí všechny řádky jako list slovníků."""
+    # Spustí SELECT dotaz a vrátí všechny řádky jako seznam slovníků.
     conn = get_connection()
+    # `dictionary=True` => každý řádek má tvar např. {"name": "IT", "id": 1}.
     cur = conn.cursor(dictionary=True)
     try:
         cur.execute(sql, params)
         return cur.fetchall()
     finally:
+        # `finally` běží vždy, i při chybě.
         cur.close()
         conn.close()
 
 
 def fetch_one(sql, params=()):
-    """Provede SELECT a vrátí jeden řádek nebo None."""
+    # Spustí SELECT a vrátí jeden řádek, nebo `None` pokud nic nenajde.
     conn = get_connection()
     cur = conn.cursor(dictionary=True)
     try:
@@ -50,11 +58,12 @@ def fetch_one(sql, params=()):
 
 
 def execute(sql, params=()):
-    """Provede INSERT/UPDATE/DELETE a vrátí počet ovlivněných řádků."""
+    # Spustí INSERT/UPDATE/DELETE a vrátí počet ovlivněných řádků.
     conn = get_connection()
     cur = conn.cursor()
     try:
         cur.execute(sql, params)
+        # Pro změny v DB je potřeba potvrzení přes commit.
         conn.commit()
         return cur.rowcount
     finally:
@@ -63,7 +72,7 @@ def execute(sql, params=()):
 
 
 def ensure_results_duration_column():
-    """Zajistí existenci sloupce duration_seconds v tabulce results."""
+    # Kontrola, že tabulka `results` má sloupec `duration_seconds`.
     global _duration_column_checked
     if _duration_column_checked:
         return
@@ -73,6 +82,8 @@ def ensure_results_duration_column():
     try:
         cur.execute("SHOW COLUMNS FROM results LIKE 'duration_seconds';")
         exists = cur.fetchone()
+        # Tady se program rozhoduje:
+        # když sloupec chybí, přidáme ho.
         if not exists:
             cur.execute("ALTER TABLE results ADD COLUMN duration_seconds INT NULL AFTER total_questions;")
             conn.commit()
@@ -83,7 +94,7 @@ def ensure_results_duration_column():
 
 
 def ensure_question_attempts_table():
-    """Zajistí existenci tabulky question_attempts."""
+    # Kontrola/vytvoření tabulky `question_attempts`.
     global _question_attempts_table_checked
     if _question_attempts_table_checked:
         return
@@ -122,7 +133,7 @@ def ensure_question_attempts_table():
 
 
 def ensure_question_reports_table():
-    """Zajistí existenci tabulky question_reports."""
+    # Kontrola/vytvoření tabulky `question_reports`.
     global _question_reports_table_checked
     if _question_reports_table_checked:
         return
@@ -166,36 +177,37 @@ def ensure_question_reports_table():
 # ---------------------------------------------------------------------------
 
 def _hash_password(password: str) -> str:
-    """Vytvoří hash hesla ve formátu salt$sha256(salt+password)."""
+    # Vytvoří salt + hash ve formátu `salt$hash`.
     salt = secrets.token_hex(16)
     digest = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
     return f"{salt}${digest}"
 
 
 def _check_password(stored: str, password: str) -> bool:
-    """Ověří heslo proti uloženému hash řetězci."""
+    # Ověří zadané heslo proti uloženému hash řetězci.
     if not stored or "$" not in stored:
         return False
     salt, digest = stored.split("$", 1)
     check = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+    # `compare_digest` je bezpečnější porovnání.
     return secrets.compare_digest(digest, check)
 
 
 def get_user_by_username(username: str):
-    """Vrátí uživatele podle uživatelského jména."""
+    # Načte uživatele podle uživatelského jména.
     sql = "SELECT user_id, username, password_hash, role FROM users WHERE username = %s;"
     return fetch_one(sql, (username,))
 
 
 def create_user(username: str, password: str, role: str = "user"):
-    """Vytvoří nového uživatele. Username je v DB unikátní."""
+    # Vytvoří nového uživatele (username je v DB unikátní).
     pwd_hash = _hash_password(password)
     sql = "INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s);"
     execute(sql, (username, pwd_hash, role))
 
 
 def verify_login(username: str, password: str):
-    """Vrátí user dict při úspěchu, jinak None."""
+    # Ověří login a při úspěchu vrátí zjednodušená data uživatele.
     user = get_user_by_username(username)
     if not user:
         return None
@@ -209,17 +221,17 @@ def verify_login(username: str, password: str):
 # ---------------------------------------------------------------------------
 
 def get_categories():
-    """Vrátí všechny kategorie seřazené podle názvu."""
+    # Načte všechny kategorie seřazené podle názvu.
     return fetch_all("SELECT category_id, name, description FROM categories ORDER BY name;")
 
 
 def get_difficulties():
-    """Vrátí všechny obtížnosti."""
+    # Načte všechny obtížnosti.
     return fetch_all("SELECT difficulty_id, name FROM difficulties ORDER BY difficulty_id;")
 
 
 def get_questions(category_id, difficulty_id, limit=10):
-    """Načte náhodný výběr otázek pro zvolenou kategorii a obtížnost."""
+    # Načte náhodný výběr otázek pro zvolenou kategorii + obtížnost.
     sql = """
     SELECT
         q.question_id,
@@ -240,7 +252,7 @@ def get_questions(category_id, difficulty_id, limit=10):
 
 
 def save_result(user_id, category_id, difficulty_id, score, total_questions, duration_seconds=None):
-    """Uloží výsledek odehraného kvízu do tabulky results včetně času."""
+    # Uloží výsledek odehraného kvízu do tabulky `results` včetně času.
     ensure_results_duration_column()
     sql = """
     INSERT INTO results (user_id, category_id, difficulty_id, score, total_questions, duration_seconds)
@@ -250,7 +262,7 @@ def save_result(user_id, category_id, difficulty_id, score, total_questions, dur
 
 
 def save_question_attempt(user_id, question_id, category_id, difficulty_id, is_correct, mode="normal"):
-    """Uloží jednotlivý pokus na otázce (pro trénink chyb i analytiku)."""
+    # Uloží jednotlivý pokus na otázce (využívá se pro trénink chyb a analytiku).
     ensure_question_attempts_table()
     sql = """
     INSERT INTO question_attempts (
@@ -265,18 +277,17 @@ def save_question_attempt(user_id, question_id, category_id, difficulty_id, is_c
             question_id,
             category_id,
             difficulty_id,
+            # Do DB ukládáme 1/0 místo True/False.
             1 if is_correct else 0,
+            # `mode` omezíme na 20 znaků podle DB sloupce.
             (mode or "normal")[:20],
         ),
     )
 
 
 def get_training_questions(user_id, category_id, difficulty_id, limit=10):
-    """
-    Načte otázky pro režim Trénink chyb.
-
-    Vybírá otázky, kde poslední odpověď daného uživatele byla špatně.
-    """
+    # Načte otázky pro režim "Trénink chyb".
+    # Princip: vybereme otázky, kde poslední odpověď daného uživatele byla špatně.
     ensure_question_attempts_table()
     sql = """
     SELECT
@@ -310,12 +321,13 @@ def get_training_questions(user_id, category_id, difficulty_id, limit=10):
 
 
 def create_question_report(question_id, user_id, reason, note=""):
-    """Vytvoří hlášení otázky z desktop aplikace."""
+    # Vytvoří nové hlášení otázky z desktop aplikace.
     ensure_question_reports_table()
     sql = """
     INSERT INTO question_reports (question_id, user_id, reason, note)
     VALUES (%s, %s, %s, %s);
     """
+    # Očistíme vstup a omezíme délku podle DB sloupců.
     clean_reason = (reason or "").strip()[:60]
     clean_note = (note or "").strip()[:500]
     execute(sql, (question_id, user_id, clean_reason, clean_note or None))

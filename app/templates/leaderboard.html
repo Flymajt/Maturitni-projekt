@@ -1,13 +1,16 @@
 ﻿{% extends "base.html" %}
 
 {% block content %}
+<!-- Hlavička stránky leaderboardu. -->
 <section class="page-head">
   <h1>Leaderboard</h1>
   <p>Veřejný přehled výsledků hráčů s filtrováním a exportem.</p>
 </section>
 
+<!-- Panel s filtrovacím formulářem. -->
 <section class="panel">
   <form method="get" class="filter-grid">
+    <!-- `method="get"` znamená, že filtry se ukládají do URL query parametrů. -->
     <div>
       <label for="username">Uživatel</label>
       <input id="username" name="username" type="text" value="{{ filters.username }}" placeholder="např. pepa">
@@ -15,6 +18,7 @@
 
     <div>
       <label for="category_id">Kategorie</label>
+      <!-- Výběr kategorie: možnosti se generují cyklem z backendu. -->
       <select id="category_id" name="category_id">
         <option value="">Všechny</option>
         {% for c in options.categories %}
@@ -25,6 +29,7 @@
 
     <div>
       <label for="difficulty_id">Obtížnost</label>
+      <!-- Výběr obtížnosti: opět dynamicky z backendu. -->
       <select id="difficulty_id" name="difficulty_id">
         <option value="">Všechny</option>
         {% for d in options.difficulties %}
@@ -54,6 +59,10 @@
       </select>
     </div>
 
+    <!-- Tlačítka formuláře:
+         - Filtrovat odešle formulář
+         - Reset vrátí stránku bez filtrů
+         - Export CSV stáhne aktuálně filtrovaná data -->
     <div class="filter-actions">
       <button class="btn btn-primary" type="submit">Filtrovat</button>
       <a class="btn btn-outline" href="{{ url_for('leaderboard') }}">Reset</a>
@@ -62,6 +71,7 @@
   </form>
 </section>
 
+<!-- Panel s výsledkovou tabulkou. -->
 <section class="panel">
   <div class="table-wrap">
     <table>
@@ -77,6 +87,7 @@
         </tr>
       </thead>
       <tbody>
+        <!-- Cyklus: každý záznam `r` vykreslí jeden řádek tabulky. -->
         {% for r in rows %}
           <tr>
             <td>{{ r.username }}</td>
@@ -87,6 +98,7 @@
             <td>{{ r.duration_seconds | format_duration }}</td>
             <td>{{ r.played_at }}</td>
           </tr>
+        <!-- `else` větev cyklu: vykreslí se, když je seznam `rows` prázdný. -->
         {% else %}
           <tr>
             <td colspan="7" class="muted">Žádná data neodpovídají zadaným filtrům.</td>
@@ -97,16 +109,19 @@
   </div>
 </section>
 
+<!-- Stránkování výsledků. -->
 <section class="pagination-wrap">
   <div class="pagination-info">
     Záznamy: {{ pagination.total_rows }} | Stránka {{ pagination.page }} z {{ pagination.total_pages }}
   </div>
+  <!-- Stránkovací navigaci ukážeme jen když je více než jedna stránka. -->
   {% if pagination.total_pages > 1 %}
     <nav class="pagination-nav" aria-label="Stránkování leaderboardu">
       {% if pagination.has_prev %}
         <a class="btn btn-outline btn-sm" href="{{ url_for('leaderboard', **pagination.prev_params) }}">Předchozí</a>
       {% endif %}
 
+      <!-- Cyklus přes viditelná čísla stránek. -->
       {% for item in pagination.page_items %}
         {% if item.number == pagination.page %}
           <span class="pagination-current">{{ item.number }}</span>
@@ -122,13 +137,17 @@
   {% endif %}
 </section>
 
+<!-- Skript hlídá, aby `datum do` nebylo menší než `datum od`. -->
 <script>
   const dateFrom = document.getElementById('date_from');
   const dateTo = document.getElementById('date_to');
 
   function syncDateMin() {
+    // Když inputy neexistují, ukončíme funkci.
     if (!dateFrom || !dateTo) return;
+    // Nastavíme minimální možné datum v poli `date_to`.
     dateTo.min = dateFrom.value || '';
+    // Když uživatel zvolí nelogické rozpětí, opravíme ho automaticky.
     if (dateFrom.value && dateTo.value && dateTo.value < dateFrom.value) {
       dateTo.value = dateFrom.value;
     }

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+<!-- Hlavička stránky správy otázek + rychlé akce nahoře. -->
 <section class="page-head split">
   <div>
     <h1>Správa otázek</h1>
@@ -11,6 +12,7 @@
   </div>
 </section>
 
+<!-- Filtrační formulář pro seznam otázek. -->
 <section class="panel">
   <form method="get" class="filter-grid">
     <div>
@@ -20,6 +22,7 @@
 
     <div>
       <label for="category_id">Kategorie</label>
+      <!-- Kategorie se načítají dynamicky z backendu. -->
       <select id="category_id" name="category_id">
         <option value="">Všechny</option>
         {% for c in categories %}
@@ -30,6 +33,7 @@
 
     <div>
       <label for="difficulty_id">Obtížnost</label>
+      <!-- Obtížnosti se také generují cyklem. -->
       <select id="difficulty_id" name="difficulty_id">
         <option value="">Všechny</option>
         {% for d in difficulties %}
@@ -45,6 +49,7 @@
   </form>
 </section>
 
+<!-- Tabulka otázek s akcemi Upravit/Smazat. -->
 <section class="panel">
   <div class="table-wrap">
     <table>
@@ -60,6 +65,7 @@
         </tr>
       </thead>
       <tbody>
+        <!-- Cyklus: každá otázka `q` = jeden řádek tabulky. -->
         {% for q in questions %}
           <tr>
             <td>{{ q.question_id }}</td>
@@ -70,11 +76,13 @@
             <td>{{ q.report_count }}</td>
             <td class="actions-cell">
               <a class="btn btn-secondary btn-sm" href="{{ url_for('admin_question_edit', question_id=q.question_id) }}">Upravit</a>
+              <!-- Odeslání POST formuláře smaže konkrétní otázku podle ID v URL. -->
               <form method="post" action="{{ url_for('admin_question_delete', question_id=q.question_id) }}" onsubmit="return confirm('Opravdu chceš smazat tuto otázku?');">
                 <button class="btn btn-danger btn-sm" type="submit">Smazat</button>
               </form>
             </td>
           </tr>
+        <!-- `else` cyklu: při prázdném seznamu vypíšeme informační řádek. -->
         {% else %}
           <tr>
             <td colspan="7" class="muted">Žádné otázky neodpovídají zadanému filtru.</td>
@@ -85,6 +93,7 @@
   </div>
 </section>
 
+<!-- Stránkování seznamu otázek. -->
 <section class="pagination-wrap">
   <div class="pagination-info">
     Záznamy: {{ pagination.total_rows }} | Stránka {{ pagination.page }} z {{ pagination.total_pages }}
@@ -95,6 +104,7 @@
         <a class="btn btn-outline btn-sm" href="{{ url_for('admin_questions', **pagination.prev_params) }}">Předchozí</a>
       {% endif %}
 
+      <!-- Cyklus přes čísla jednotlivých stránek. -->
       {% for item in pagination.page_items %}
         {% if item.number == pagination.page %}
           <span class="pagination-current">{{ item.number }}</span>

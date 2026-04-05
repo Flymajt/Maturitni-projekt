@@ -1,34 +1,53 @@
 ﻿<!doctype html>
+<!-- Základní kostra stránky, kterou dědí ostatní šablony přes `{% extends "base.html" %}`. -->
 <html lang="cs">
 <head>
+  <!-- UTF-8 kvůli správnému zobrazení českých znaků. -->
   <meta charset="utf-8">
+  <!-- Správné měřítko stránky na mobilu i desktopu. -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Když backend pošle proměnnou `title`, použije se ta; jinak výchozí text. -->
   <title>{{ title or "Interaktivní kvízový systém" }}</title>
+
+  <!-- Externí fonty z Google Fonts. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Hlavní CSS ze složky `static` (Flask route `static`). -->
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+  <!-- Dekorativní pozadí celé stránky. -->
   <div class="page-bg"></div>
 
+  <!-- Hlavní hlavička webu: logo, navigace, stav přihlášení. -->
   <header class="site-header">
     <div class="container nav-wrap">
+      <!-- Klik na název webu vede na domovskou stránku (`home`). -->
       <a class="brand" href="{{ url_for('home') }}">Kvízový Systém</a>
+
       <nav class="main-nav">
+        <!-- Veřejné odkazy. -->
         <a href="{{ url_for('home') }}">Domů</a>
         <a href="{{ url_for('leaderboard') }}">Leaderboard</a>
         <a href="{{ url_for('stats_page') }}">Statistiky</a>
+
+        <!-- Tady se šablona rozhoduje:
+             odkaz na admin sekci se zobrazí jen adminovi. -->
         {% if current_user and current_user.role == 'admin' %}
           <a href="{{ url_for('admin_dashboard') }}">Admin</a>
         {% endif %}
       </nav>
 
       <div class="auth-nav">
+        <!-- Tady se šablona rozhoduje podle přihlášení. -->
         {% if current_user %}
+          <!-- Přihlášený uživatel: profil + odhlášení. -->
           <a class="user-pill" href="{{ url_for('profile') }}">Přihlášen jako: {{ current_user.username }}</a>
           <a class="btn btn-outline" href="{{ url_for('logout') }}">Odhlásit</a>
         {% else %}
+          <!-- Nepřihlášený návštěvník: registrace + přihlášení. -->
           <a class="btn btn-outline" href="{{ url_for('register') }}">Registrace</a>
           <a class="btn btn-primary" href="{{ url_for('login') }}">Přihlášení</a>
         {% endif %}
@@ -36,10 +55,13 @@
     </div>
   </header>
 
+  <!-- Hlavní obsah každé stránky. -->
   <main class="container content">
+    <!-- Flash zprávy z backendu (např. úspěch/chyba). -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <ul class="flash-list">
+          <!-- Cyklus: vykreslí každou zprávu zvlášť. -->
           {% for category, message in messages %}
             <li class="flash flash-{{ category }}">{{ message }}</li>
           {% endfor %}
@@ -47,15 +69,15 @@
       {% endif %}
     {% endwith %}
 
+    <!-- Sem se vloží obsah konkrétní podstránky. -->
     {% block content %}{% endblock %}
   </main>
 
+  <!-- Spodní část stránky (footer). -->
   <footer class="site-footer">
     <div class="container footer-wrap">
       <p><strong>Interaktivní kvízový systém</strong></p>
-      
     </div>
   </footer>
 </body>
 </html>
-
