@@ -1,5 +1,5 @@
 ﻿<!doctype html>
-<!-- Základní kostra stránky, kterou dědí ostatní šablony přes `{% extends "base.html" %}`. -->
+<!-- Základní kostra stránky, kterou dědí ostatní šablony přes direktivu extends. -->
 <html lang="cs">
 <head>
   <!-- UTF-8 kvůli správnému zobrazení českých znaků. -->
@@ -58,11 +58,11 @@
   <!-- Hlavní obsah každé stránky. -->
   <main class="container content">
     <!-- Flash zprávy z backendu (např. úspěch/chyba). -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
+    {% with flashes = get_flashed_messages(with_categories=true) %}
+      {% if flashes %}
         <ul class="flash-list">
           <!-- Cyklus: vykreslí každou zprávu zvlášť. -->
-          {% for category, message in messages %}
+          {% for category, message in flashes %}
             <li class="flash flash-{{ category }}">{{ message }}</li>
           {% endfor %}
         </ul>

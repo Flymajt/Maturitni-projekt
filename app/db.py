@@ -176,7 +176,7 @@ def ensure_question_attempts_table():
                     INDEX idx_attempts_user_time (user_id, answered_at),
                     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
                     FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE,
-                    FOREIGN KEY (category_id) REFERENCES categories(category_id),
+                    FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE,
                     FOREIGN KEY (difficulty_id) REFERENCES difficulties(difficulty_id)
                 );
                 """
@@ -333,9 +333,53 @@ def create_category(name: str, description: str = ""):
 
 
 def delete_category(category_id: int):
-    # Smaže kategorii podle jejího ID.
-    sql = "DELETE FROM categories WHERE category_id = %s;"
-    return execute(sql, (category_id,))
+    # Smaže kategorii "natvrdo" včetně navázaných dat:
+    # - výsledky v `results`
+    # - pokusy v `question_attempts`
+    # - vazby otázka<->kategorie v `questions_categories`
+    # - otázky, které po odebrání vazby zůstanou bez jakékoli kategorie
+    # Vše běží v jedné transakci, aby nevznikla napůl smazaná data.
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        # Nejdřív si uložíme otázky patřící do této kategorie.
+        # Později smažeme jen ty, které po odebrání vazby osiří.
+        cur.execute(
+            "SELECT DISTINCT question_id FROM questions_categories WHERE category_id = %s;",
+            (category_id,),
+        )
+        question_ids = [row[0] for row in cur.fetchall()]
+
+        # Smazání dat navázaných přímo na kategorii.
+        cur.execute("DELETE FROM results WHERE category_id = %s;", (category_id,))
+        cur.execute("DELETE FROM question_attempts WHERE category_id = %s;", (category_id,))
+        cur.execute("DELETE FROM questions_categories WHERE category_id = %s;", (category_id,))
+
+        # Smazání otázek, které byly v této kategorii a už nemají žádnou jinou vazbu.
+        if question_ids:
+            placeholders = ", ".join(["%s"] * len(question_ids))
+            cur.execute(
+                f"""
+                DELETE q
+                FROM questions q
+                LEFT JOIN questions_categories qc ON qc.question_id = q.question_id
+                WHERE q.question_id IN ({placeholders})
+                  AND qc.question_id IS NULL;
+                """,
+                tuple(question_ids),
+            )
+
+        # Nakonec smažeme samotnou kategorii.
+        cur.execute("DELETE FROM categories WHERE category_id = %s;", (category_id,))
+        deleted_categories = cur.rowcount
+        conn.commit()
+        return deleted_categories
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
 
 
 def update_category_description(category_id: int, description: str = ""):

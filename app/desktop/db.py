@@ -120,7 +120,7 @@ def ensure_question_attempts_table():
                     INDEX idx_attempts_user_time (user_id, answered_at),
                     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
                     FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE,
-                    FOREIGN KEY (category_id) REFERENCES categories(category_id),
+                    FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE,
                     FOREIGN KEY (difficulty_id) REFERENCES difficulties(difficulty_id)
                 );
                 """
