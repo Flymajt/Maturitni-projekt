@@ -26,6 +26,7 @@ class LoginWindow(QWidget):
         self.setWindowTitle("Přihlášení do kvízu")
 
         # `on_login_success` je funkce (callback), kterou zavoláme po úspěšném loginu.
+        # Callback je "funkce předaná zvenku", takže LoginWindow neřeší, co dál otevřít.
         self.on_login_success = on_login_success
 
         # Nastavení minimální a výchozí velikosti okna.
@@ -35,6 +36,7 @@ class LoginWindow(QWidget):
         # Hlavní vertikální layout celého okna.
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(32, 28, 32, 28)
+        # `AlignCenter` drží hlavní kartu uprostřed i při změně velikosti okna.
         root_layout.setAlignment(Qt.AlignCenter)
 
         # "Karta" uprostřed stránky.
@@ -87,9 +89,13 @@ class LoginWindow(QWidget):
             self._eye_icon(slashed=True, hovered=False),
             QLineEdit.TrailingPosition,
         )
+        # Kliknutí na ikonku oka přepíná režim "skrýt/zobrazit heslo".
         self.password_toggle_action.triggered.connect(self._toggle_password_visibility)
+        # Pravý textový okraj trochu odskočí, aby se text nedotýkal ikonky.
         self.password_inp.setTextMargins(0, 0, 8, 0)
+        # Zapneme sledování pohybu myši i bez stisku tlačítka.
         self.password_inp.setMouseTracking(True)
+        # `eventFilter` dovolí zachytit pohyb/opuštění myši přímo nad tímto inputem.
         self.password_inp.installEventFilter(self)
 
         layout.addWidget(self.password_inp)
@@ -117,42 +123,56 @@ class LoginWindow(QWidget):
     def _eye_icon(self, slashed: bool = False, hovered: bool = False) -> QIcon:
         # Vytvoří jednoduchou ikonu oka; při `slashed=True` přidá přeškrtnutí.
         size = 20
+        # `QPixmap` je "plátno" v paměti, do kterého budeme kreslit.
         pix = QPixmap(size, size)
+        # Transparentní pozadí = uvidíme jen kreslený tvar, ne čtverec kolem něj.
         pix.fill(Qt.transparent)
 
         painter = QPainter(pix)
+        # Anti-aliasing vyhlazuje hrany křivek/čar, aby ikonka nebyla zubatá.
         painter.setRenderHint(QPainter.Antialiasing)
 
         if hovered:
+            # Při najetí myší jemně podbarvíme pozadí ikony.
             painter.setPen(Qt.NoPen)
             painter.setBrush(QColor("#DDECEF"))
             painter.drawRoundedRect(0, 0, size, size, 6, 6)
 
+        # Při hoveru je barva o něco tmavší, aby bylo vidět, že je prvek aktivní.
         eye_color = QColor("#09637E" if hovered else "#088395")
         pen = QPen(eye_color)
+        # Šířka a zakončení čáry určují "tloušťku a styl" obrysu oka.
         pen.setWidth(2)
         pen.setCapStyle(Qt.RoundCap)
         painter.setPen(pen)
         painter.setBrush(Qt.NoBrush)
+        # Obrys oka.
         painter.drawEllipse(3, 7, 13, 6)
 
+        # Vnitřní "zornice" oka.
         painter.setPen(Qt.NoPen)
         painter.setBrush(eye_color)
         painter.drawEllipse(8, 9, 3, 3)
 
         if slashed:
+            # Přeškrtnutí značí, že heslo je právě skryté.
             painter.setPen(pen)
             painter.drawLine(4, 15, 16, 5)
 
+        # Ukončení kreslení a převod pixmapy na ikonu použitelkou v akci inputu.
         painter.end()
         return QIcon(pix)
 
     def _is_over_password_toggle(self, pos) -> bool:
         # Pravý okraj inputu vyhrazujeme pro ikonku oka.
         icon_zone_width = 30
+        # Vrátí True, když je kurzor myši v pravé "klikací" zóně.
         return pos.x() >= (self.password_inp.width() - icon_zone_width)
 
     def _refresh_password_toggle_icon(self):
+        # Ikonu vždy překreslíme podle aktuálního stavu:
+        # - `slashed`: heslo skryté/zobrazené
+        # - `hovered`: myš nad ikonou nebo ne
         self.password_toggle_action.setIcon(
             self._eye_icon(
                 slashed=not self._password_visible,
@@ -166,23 +186,31 @@ class LoginWindow(QWidget):
     def _set_password_visible(self, visible: bool):
         # True = zobrazit heslo, False = skrýt heslo.
         self._password_visible = visible
+        # `QLineEdit.Normal` = znaky čitelné, `QLineEdit.Password` = maskované.
         self.password_inp.setEchoMode(QLineEdit.Normal if visible else QLineEdit.Password)
         self._refresh_password_toggle_icon()
+        # Tooltip vysvětlí, co se stane po kliknutí.
         self.password_toggle_action.setToolTip("Skrýt heslo" if visible else "Zobrazit heslo")
 
     def eventFilter(self, obj, event):
+        # Filtrujeme jen události z pole hesla.
         if obj is self.password_inp:
             if event.type() == QEvent.MouseMove:
+                # Zjistíme, jestli myš právě leží nad zónou ikony oka.
                 hovered = self._is_over_password_toggle(event.pos())
                 if hovered != self._password_icon_hovered:
+                    # Překreslíme ikonu jen při změně stavu (šetří zbytečné překreslování).
                     self._password_icon_hovered = hovered
                     self._refresh_password_toggle_icon()
+                # Nad ikonou ukážeme "ruku", jinak klasický textový kurzor.
                 self.password_inp.setCursor(Qt.PointingHandCursor if hovered else Qt.IBeamCursor)
             elif event.type() == QEvent.Leave:
+                # Když myš opustí input, zrušíme hover styl.
                 if self._password_icon_hovered:
                     self._password_icon_hovered = False
                     self._refresh_password_toggle_icon()
                 self.password_inp.setCursor(Qt.IBeamCursor)
+        # Ostatní události necháme zpracovat výchozí logikou rodiče.
         return super().eventFilter(obj, event)
 
     def login(self):
@@ -193,6 +221,7 @@ class LoginWindow(QWidget):
         # Tady se program rozhoduje:
         # když některé pole chybí, zobrazí chybu a skončí.
         if not username or not password:
+            # `QMessageBox.warning` otevře modální dialog s varováním.
             QMessageBox.warning(self, "Chyba", "Vyplň uživatelské jméno i heslo.")
             return
 
@@ -203,15 +232,18 @@ class LoginWindow(QWidget):
             return
 
         # Pak ověříme heslo.
+        # `verify_login` vrací buď data uživatele, nebo `None` při neplatném hesle.
         user = verify_login(username, password)
         if not user:
             QMessageBox.warning(self, "Chyba", "Špatné heslo.")
             return
 
         # Úspěšné přihlášení: informace pro uživatele.
+        # `information` je "pozitivní" dialog (na rozdíl od `warning`).
         QMessageBox.information(self, "OK", f"Přihlášen jako: {user['username']}")
 
         # Zavoláme callback, aby aplikace mohla otevřít další okno.
+        # Typicky se zde otevře start/dashboard okno desktop aplikace.
         self.on_login_success(user)
 
         # Login okno už není potřeba, proto ho zavřeme.

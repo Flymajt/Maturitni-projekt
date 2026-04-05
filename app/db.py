@@ -12,8 +12,6 @@ from io import StringIO
 import mysql.connector
 from flask import current_app
 
-# Balíček `mysql.connector` je externí knihovna (instaluje se přes pip),
-# fyzicky ji Python hledá ve vašem virtuálním prostředí (např. `.venv/Lib/site-packages/mysql/...`).
 # `current_app` je z Flasku (také externí balíček v `site-packages/flask/...`).
 # Používáme ho, protože obsahuje nastavení aplikace (včetně údajů k DB).
 # `current_app` funguje jen uvnitř Flask kontextu (např. při zpracování HTTP požadavku).
@@ -351,12 +349,14 @@ def delete_category(category_id: int):
         question_ids = [row[0] for row in cur.fetchall()]
 
         # Smazání dat navázaných přímo na kategorii.
+        # Pořadí je zvolené tak, aby nevznikaly konflikty cizích klíčů.
         cur.execute("DELETE FROM results WHERE category_id = %s;", (category_id,))
         cur.execute("DELETE FROM question_attempts WHERE category_id = %s;", (category_id,))
         cur.execute("DELETE FROM questions_categories WHERE category_id = %s;", (category_id,))
 
         # Smazání otázek, které byly v této kategorii a už nemají žádnou jinou vazbu.
         if question_ids:
+            # Pro seznam ID vytvoříme správný počet placeholderů: `%s, %s, %s, ...`.
             placeholders = ", ".join(["%s"] * len(question_ids))
             cur.execute(
                 f"""
@@ -366,6 +366,7 @@ def delete_category(category_id: int):
                 WHERE q.question_id IN ({placeholders})
                   AND qc.question_id IS NULL;
                 """,
+                # Hodnoty ID posíláme zvlášť jako tuple (bezpečně, bez ručního skládání SQL).
                 tuple(question_ids),
             )
 
@@ -375,6 +376,7 @@ def delete_category(category_id: int):
         conn.commit()
         return deleted_categories
     except Exception:
+        # Jakákoli chyba = vrátit transakci zpět do původního stavu.
         conn.rollback()
         raise
     finally:
@@ -604,13 +606,13 @@ def count_user_history_rows(user_id: int, filters: dict | None = None):
 
 def get_user_history_summary(user_id: int, filters: dict | None = None):
     # Spočítá souhrnné statistiky pro zobrazení na stránce "Moje historie".
+    # AVG = průměrná procentuální úspěšnost přes všechny pokusy.
     where_sql, params = _build_user_history_where(user_id, filters)
     sql = f"""
     SELECT
         COUNT(*) AS attempts,
         COALESCE(SUM(r.score), 0) AS total_correct_answers,
         COALESCE(SUM(r.total_questions), 0) AS total_answered_questions,
-        # AVG = průměrná procentuální úspěšnost přes všechny pokusy.
         COALESCE(ROUND(AVG((r.score / NULLIF(r.total_questions, 0)) * 100), 2), 0) AS avg_success_pct,
         COALESCE(MAX((r.score / NULLIF(r.total_questions, 0)) * 100), 0) AS best_success_pct
     FROM results r
@@ -700,6 +702,7 @@ def list_questions(
 
     # Hlavní dotaz.
     # `LEFT JOIN` je tu záměrně, aby se otázka ukázala i když k ní chybí vazba/hlášení.
+    # Poddotaz níže spočítá počet hlášení pro každou otázku zvlášť.
     sql = f"""
     SELECT
         q.question_id,
@@ -720,7 +723,6 @@ def list_questions(
     LEFT JOIN questions_categories qc ON qc.question_id = q.question_id
     LEFT JOIN categories c ON c.category_id = qc.category_id
     LEFT JOIN (
-        # Poddotaz spočítá počet hlášení pro každou otázku zvlášť.
         SELECT question_id, COUNT(*) AS report_count
         FROM question_reports
         GROUP BY question_id
@@ -1130,6 +1132,7 @@ def get_stats_by_difficulty():
 
 def get_top_users(limit: int = 10):
     # Vrátí TOP uživatele podle průměrné úspěšnosti a počtu pokusů.
+    # `HAVING` filtruje až po GROUP BY (na agregované výsledky).
     sql = """
     SELECT
         u.username,
@@ -1138,7 +1141,6 @@ def get_top_users(limit: int = 10):
     FROM users u
     JOIN results r ON r.user_id = u.user_id
     GROUP BY u.user_id, u.username
-    # `HAVING` filtruje až po GROUP BY (na agregované výsledky).
     HAVING attempts > 0
     ORDER BY avg_success DESC, attempts DESC, u.username
     LIMIT %s;
@@ -1207,6 +1209,8 @@ def get_question_reports(status: str | None = None, limit: int | None = 15, offs
         where_sql = "WHERE qr.status = %s"
         params.append(normalized)
 
+    # CASE v ORDER BY nám umožní vlastní pořadí statusů.
+    # Díky tomu budou "new" hlášení vždy před "reviewed/resolved/rejected".
     sql = f"""
     SELECT
         qr.report_id,
@@ -1227,7 +1231,6 @@ def get_question_reports(status: str | None = None, limit: int | None = 15, offs
     LEFT JOIN users resolver ON resolver.user_id = qr.resolved_by
     {where_sql}
     ORDER BY
-        # CASE určuje "vlastní prioritu": nová hlášení budou vždy nahoře.
         CASE qr.status
             WHEN 'new' THEN 0
             WHEN 'reviewed' THEN 1
